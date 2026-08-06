@@ -229,7 +229,7 @@ window.PVZ_DATA = {
       file: "pvz-4.html",
       costs: {
         fotPerDay: 2000,
-        rentPerMonth: 70000,
+        rentPerMonth: 0, // без аренды
         internetPerMonth: 4500,
         suppliesPerMonth: 5000,
         adminPerMonth: 15000,
