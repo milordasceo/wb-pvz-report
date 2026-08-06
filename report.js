@@ -301,11 +301,59 @@
     `;
   }
 
+  function isShareMode() {
+    try {
+      return new URLSearchParams(location.search).get("share") === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function shareUrlForCurrentPage() {
+    const u = new URL(location.href);
+    u.searchParams.set("share", "1");
+    // убираем лишний hash
+    u.hash = "";
+    return u.toString();
+  }
+
+  async function copyShareLink(btn) {
+    const url = shareUrlForCurrentPage();
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: document.title,
+          text: "Отчёт ПВЗ",
+          url,
+        });
+        return;
+      }
+    } catch (e) {
+      // пользователь отменил share — не падаем, пробуем copy
+      if (e && e.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (btn) {
+        const prev = btn.textContent;
+        btn.textContent = "Ссылка скопирована";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.textContent = prev;
+          btn.classList.remove("copied");
+        }, 1800);
+      }
+    } catch {
+      prompt("Скопируйте ссылку:", url);
+    }
+  }
+
   function renderPoint(pointId) {
     const root = document.getElementById("app");
     const point = window.PVZ_DATA?.points?.find((p) => p.id === pointId);
     if (!root || !point) return;
 
+    const shareOnly = isShareMode();
     const months = buildMonths(point);
     const rate = fotDay(point);
     const totalRev = months.reduce((a, m) => a + m.revenue, 0);
@@ -380,7 +428,18 @@
       .join("");
 
     root.innerHTML = `
-      <a class="back" href="index.html">← Все точки</a>
+      <div class="page-actions">
+        ${
+          shareOnly
+            ? `<span class="share-hint">Только эта точка · без списка ПВЗ</span>`
+            : `<a class="back" href="index.html">← Все точки</a>`
+        }
+        ${
+          shareOnly
+            ? ""
+            : `<button type="button" class="share-btn" id="share-btn" aria-label="Поделиться">Поделиться</button>`
+        }
+      </div>
       <div class="topbar">
         <div class="brand">
           <strong>${point.title}</strong>
@@ -408,6 +467,18 @@
       <div class="section-title"><h2>Месяцы</h2><span>нажми, чтобы открыть</span></div>
       <div class="cards">${monthCards}</div>
     `;
+
+    if (!shareOnly) {
+      const btn = document.getElementById("share-btn");
+      if (btn) {
+        btn.addEventListener("click", () => copyShareLink(btn));
+      }
+    }
+
+    // в режиме share — не даём «случайно» уйти на index через history, если открыли с share
+    if (shareOnly) {
+      document.body.classList.add("share-only");
+    }
   }
 
   window.renderIndex = renderIndex;
