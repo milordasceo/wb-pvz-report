@@ -1,0 +1,323 @@
+:root {
+  --bg: #0b1220;
+  --bg-card: #121a2b;
+  --bg-soft: #18233a;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f3f6ff;
+  --muted: #9aa8c7;
+  --accent: #7c5cff;
+  --accent-2: #3dd6c6;
+  --plus: #3dd68c;
+  --minus: #ff6b7a;
+  --warn: #ffc857;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --radius: 18px;
+  --max: 720px;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(124, 92, 255, 0.25), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(61, 214, 198, 0.12), transparent 50%),
+    var(--bg);
+  line-height: 1.45;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.wrap {
+  width: min(100% - 2rem, var(--max));
+  margin: 0 auto;
+  padding: 1.25rem 0 3rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.brand small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.brand strong {
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(124, 92, 255, 0.15);
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  color: #d7ceff;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.hero {
+  background: linear-gradient(160deg, rgba(124, 92, 255, 0.18), rgba(24, 35, 58, 0.9));
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  padding: 1.25rem 1.2rem 1.35rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.1rem;
+}
+
+.hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.75rem);
+  line-height: 1.2;
+}
+
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.kpi {
+  background: rgba(11, 18, 32, 0.45);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.85rem 0.9rem;
+}
+
+.kpi .label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.kpi .value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.kpi .value.plus { color: var(--plus); }
+.kpi .value.minus { color: var(--minus); }
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.section-title h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.section-title span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.cards {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1rem 0.9rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.card-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.card-head .week-range {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.profit-pill {
+  flex-shrink: 0;
+  padding: 0.4rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.profit-pill.plus {
+  color: #b8ffd7;
+  background: rgba(61, 214, 140, 0.12);
+  border-color: rgba(61, 214, 140, 0.35);
+}
+
+.profit-pill.minus {
+  color: #ffc3c9;
+  background: rgba(255, 107, 122, 0.12);
+  border-color: rgba(255, 107, 122, 0.35);
+}
+
+.rows {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: var(--bg-soft);
+}
+
+.row .name {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.row .amount {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92rem;
+}
+
+.row.revenue .amount { color: #c8bfff; }
+.row.cost .amount { color: #ffd0a8; }
+.row.net {
+  margin-top: 0.25rem;
+  background: rgba(61, 214, 140, 0.08);
+  border: 1px solid rgba(61, 214, 140, 0.18);
+}
+.row.net.negative {
+  background: rgba(255, 107, 122, 0.08);
+  border-color: rgba(255, 107, 122, 0.18);
+}
+.row.net .name {
+  color: var(--text);
+  font-weight: 600;
+}
+.row.net .amount.plus { color: var(--plus); }
+.row.net .amount.minus { color: var(--minus); }
+
+.point-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.point-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.05rem 1.1rem;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.point-link:hover,
+.point-link:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(124, 92, 255, 0.45);
+  outline: none;
+}
+
+.point-link .meta small {
+  display: block;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+.point-link .arrow {
+  color: var(--accent-2);
+  font-size: 1.25rem;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+
+.back:hover { color: var(--text); }
+
+.note {
+  margin-top: 1.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: rgba(255, 200, 87, 0.08);
+  border: 1px solid rgba(255, 200, 87, 0.22);
+  color: #ffe4a8;
+  font-size: 0.86rem;
+}
+
+.footer {
+  margin-top: 1.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
