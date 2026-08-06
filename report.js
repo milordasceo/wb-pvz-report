@@ -322,10 +322,15 @@
         const netCls = m.net >= 0 ? "plus" : "minus";
         const weeks = m.weeks
           .map((w) => {
-            if (w.subsidy > 0 && !(w.revenue > 0)) {
+            if (w.subsidy > 0) {
+              const splitHint = w.split ? ` (${w.days} дн.)` : "";
               return `
             <div class="row">
-              <span class="name">${w.period}${w.split ? ` (${w.days} дн.)` : ""} · <em>субсидия WB, не продажи</em></span>
+              <span class="name">${w.period}${splitHint} · продажи</span>
+              <span class="amount">${money(w.revenue)}</span>
+            </div>
+            <div class="row">
+              <span class="name">${w.period}${splitHint} · <em>субсидия WB 180к, не продажи</em></span>
               <span class="amount">${money(w.subsidy)}</span>
             </div>`;
             }
