@@ -123,7 +123,8 @@
         const internet = proRate(netFull, m.daysCovered, m.daysInMonth);
         const supplies = proRate(supFull, m.daysCovered, m.daysInMonth);
         const admin = proRate(admFull, m.daysCovered, m.daysInMonth);
-        const expenses = fot + rent + internet + supplies + admin;
+        const tax = m.revenue * 0.06; // 6% от выручки
+        const expenses = fot + rent + internet + supplies + admin + tax;
         return {
           ...m,
           fot,
@@ -131,6 +132,7 @@
           internet,
           supplies,
           admin,
+          tax,
           expenses,
           net: m.revenue - expenses,
           rate,
@@ -338,6 +340,7 @@
                 <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
                 <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
                 <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
+                <div class="row cost"><span class="name">Налоги (6% от выручки)</span><span class="amount">${money(m.tax)}</span></div>
                 <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
                 <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
               </div>
