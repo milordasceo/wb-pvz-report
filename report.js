@@ -53,26 +53,29 @@
       })
       .join("");
 
+    const weekCount = points[0]?.weeks?.length || 0;
+    const mergeLines = (meta.merges || []).map((m) => `• ${m}`).join("<br>");
+
     root.innerHTML = `
       <div class="topbar">
         <div class="brand">
           <strong>Wildberries · ПВЗ</strong>
           <small>Новосибирск · выручка «к выплате»</small>
         </div>
-        <span class="badge">16 мар – 24 мая 2026</span>
+        <span class="badge">16 мар – 2 авг 2026</span>
       </div>
       <section class="hero">
         <h1>4 пункта выдачи</h1>
-        <p>Недельная выручка из ЛК. Чистый плюс — после загрузки затрат.</p>
+        <p>Недельная выручка из ЛК. Дубли адресов/кодов склеены в одну точку.</p>
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Точек</span><span class="value">4</span></div>
-          <div class="kpi"><span class="label">Недель</span><span class="value">10</span></div>
+          <div class="kpi"><span class="label">Недель</span><span class="value">${weekCount}</span></div>
           <div class="kpi"><span class="label">Затраты</span><span class="value">ждут</span></div>
         </div>
       </section>
       <div class="section-title"><h2>Точки</h2><span>открыть отчёт</span></div>
       <div class="point-list">${cards}</div>
-      <div class="note">${meta.note}<br><br>${meta.monthFormula}</div>
+      <div class="note">${meta.note}<br><br>${mergeLines}<br><br>${meta.monthFormula}</div>
       <p class="footer">WB ПВЗ · Новосибирск</p>
     `;
   }
@@ -118,6 +121,10 @@
             <div class="row net"><span class="name">Чистый плюс</span><span class="amount">нужны затраты</span></div>
           `;
 
+        const mergeNote = w.note
+          ? `<div class="row" style="background:transparent;padding:0.2rem 0.65rem 0;"><span class="name" style="font-size:0.75rem">склейка: ${w.note}</span><span></span></div>`
+          : "";
+
         return `
           <article class="card">
             <div class="card-head">
@@ -129,6 +136,7 @@
             </div>
             <div class="rows">
               <div class="row revenue"><span class="name">Выручка (к выплате)</span><span class="amount">${money(w.revenue)}</span></div>
+              ${mergeNote}
               ${costRows}
             </div>
           </article>`;
@@ -142,7 +150,7 @@
           <strong>${point.title}</strong>
           <small>ПВЗ #${point.code} · ${point.address}</small>
         </div>
-        <span class="badge">10 недель</span>
+        <span class="badge">${point.weeks.length} нед.</span>
       </div>
       <section class="hero">
         <h1>Финансовый отчёт</h1>
