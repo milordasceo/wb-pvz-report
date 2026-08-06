@@ -62,12 +62,15 @@
       totalDays += 1;
     }
     if (!totalDays) return [];
+    const sales = Number(week.revenue) || 0;
+    const subsidy = Number(week.subsidy) || 0;
     return Object.keys(dayMap)
       .sort()
       .map((key) => ({
         key,
         days: dayMap[key],
-        revenue: (week.revenue * dayMap[key]) / totalDays,
+        revenue: (sales * dayMap[key]) / totalDays,
+        subsidy: (subsidy * dayMap[key]) / totalDays,
         week,
       }));
   }
@@ -94,6 +97,7 @@
           map[part.key] = {
             key: part.key,
             revenue: 0,
+            subsidy: 0,
             daysCovered: 0,
             daysInMonth: daysInMonth(y, m - 1),
             weeks: [],
@@ -101,11 +105,14 @@
         }
         const b = map[part.key];
         b.revenue += part.revenue;
+        b.subsidy += part.subsidy;
         b.daysCovered += part.days;
         b.weeks.push({
           period: week.period,
           days: part.days,
           revenue: part.revenue,
+          subsidy: part.subsidy,
+          note: week.note || null,
           split,
         });
       }
@@ -123,8 +130,10 @@
         const internet = proRate(netFull, m.daysCovered, m.daysInMonth);
         const supplies = proRate(supFull, m.daysCovered, m.daysInMonth);
         const admin = proRate(admFull, m.daysCovered, m.daysInMonth);
-        const tax = m.revenue * 0.06; // 6% от выручки
+        const tax = m.revenue * 0.06; // 6% только от выручки продаж
         const expenses = fot + rent + internet + supplies + admin + tax;
+        // субсидия — отдельный доход, не продажи; в плюс входит
+        const net = m.revenue + m.subsidy - expenses;
         return {
           ...m,
           fot,
@@ -134,7 +143,7 @@
           admin,
           tax,
           expenses,
-          net: m.revenue - expenses,
+          net,
           rate,
           partial: m.daysCovered < m.daysInMonth,
         };
@@ -249,7 +258,7 @@
     });
 
     const allNet = stats.reduce((a, s) => a + s.totalNet, 0);
-    const allRev = stats.reduce((a, s) => a + s.totalRev, 0);
+    const allRev = stats.reduce((a, s) => a + s.totalRev, 0); // только продажи
     const best = stats.reduce((a, s) => (s.totalNet > a.totalNet ? s : a), stats[0]);
 
     const cards = stats
@@ -282,7 +291,7 @@
       </div>
       <section class="hero compact">
         <div class="kpi-grid">
-          <div class="kpi"><span class="label">Выручка всех точек</span><span class="value">${moneyShort(allRev)}</span></div>
+          <div class="kpi"><span class="label">Выручка продаж (все)</span><span class="value">${moneyShort(allRev)}</span></div>
           <div class="kpi"><span class="label">Чистый плюс</span><span class="value ${allNet >= 0 ? "plus" : "minus"}">${allNet >= 0 ? "+" : ""}${moneyShort(allNet)}</span></div>
           <div class="kpi"><span class="label">Лучшая точка</span><span class="value" style="font-size:0.92rem">${best?.p.title || "—"}</span></div>
         </div>
@@ -300,8 +309,9 @@
     const months = buildMonths(point);
     const rate = fotDay(point);
     const totalRev = months.reduce((a, m) => a + m.revenue, 0);
+    const totalSubsidy = months.reduce((a, m) => a + m.subsidy, 0);
     const totalExp = months.reduce((a, m) => a + m.expenses, 0);
-    const totalNet = totalRev - totalExp;
+    const totalNet = months.reduce((a, m) => a + m.net, 0);
     const last = lastUsefulMonth(months);
     const profitable = months.filter((m) => m.net >= 0).length;
 
@@ -311,13 +321,21 @@
       .map((m) => {
         const netCls = m.net >= 0 ? "plus" : "minus";
         const weeks = m.weeks
-          .map(
-            (w) => `
+          .map((w) => {
+            if (w.subsidy > 0 && !(w.revenue > 0)) {
+              return `
             <div class="row">
-              <span class="name">${w.period}${w.split ? ` (${w.days} дн.)` : ""}</span>
+              <span class="name">${w.period}${w.split ? ` (${w.days} дн.)` : ""} · <em>субсидия WB, не продажи</em></span>
+              <span class="amount">${money(w.subsidy)}</span>
+            </div>`;
+            }
+            const note = w.note ? ` · ${w.note}` : "";
+            return `
+            <div class="row">
+              <span class="name">${w.period}${w.split ? ` (${w.days} дн.)` : ""}${note}</span>
               <span class="amount">${money(w.revenue)}</span>
-            </div>`
-          )
+            </div>`;
+          })
           .join("");
 
         return `
@@ -334,7 +352,12 @@
             </summary>
             <div class="month-body">
               <div class="rows">
-                <div class="row revenue"><span class="name">Выручка</span><span class="amount">${money(m.revenue)}</span></div>
+                <div class="row revenue"><span class="name">Выручка (продажи)</span><span class="amount">${money(m.revenue)}</span></div>
+                ${
+                  m.subsidy > 0
+                    ? `<div class="row revenue"><span class="name">Субсидия WB <em>(не продажи)</em></span><span class="amount">${money(m.subsidy)}</span></div>`
+                    : ""
+                }
                 <div class="row cost"><span class="name">ФОТ (${moneyShort(rate)} × ${m.daysCovered})</span><span class="amount">${money(m.fot)}</span></div>
                 <div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>
                 <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
@@ -362,12 +385,16 @@
       </div>
       <section class="hero compact">
         <div class="kpi-grid">
-          <div class="kpi"><span class="label">Выручка</span><span class="value">${moneyShort(totalRev)}</span></div>
+          <div class="kpi"><span class="label">Выручка (продажи)</span><span class="value">${moneyShort(totalRev)}</span></div>
           <div class="kpi"><span class="label">Расходы</span><span class="value">${moneyShort(totalExp)}</span></div>
           <div class="kpi"><span class="label">Плюс</span><span class="value ${totalNet >= 0 ? "plus" : "minus"}">${totalNet >= 0 ? "+" : ""}${moneyShort(totalNet)}</span></div>
           <div class="kpi"><span class="label">Последний мес.</span><span class="value ${last && last.net >= 0 ? "plus" : "minus"}">${last ? (last.net >= 0 ? "+" : "") + moneyShort(last.net) : "—"}</span></div>
           <div class="kpi"><span class="label">В плюсе</span><span class="value">${profitable}/${months.length}</span></div>
-          <div class="kpi"><span class="label">Месяц</span><span class="value" style="font-size:0.9rem">${last ? monthShort(last.key) : "—"}</span></div>
+          ${
+            totalSubsidy > 0
+              ? `<div class="kpi"><span class="label">Субсидии WB</span><span class="value">${moneyShort(totalSubsidy)}</span></div>`
+              : `<div class="kpi"><span class="label">Месяц</span><span class="value" style="font-size:0.9rem">${last ? monthShort(last.key) : "—"}</span></div>`
+          }
         </div>
       </section>
 
