@@ -111,6 +111,10 @@ a {
   margin-top: 1rem;
 }
 
+.point-link .meta small + small {
+  margin-top: 0.15rem;
+}
+
 .kpi {
   background: rgba(11, 18, 32, 0.45);
   border: 1px solid var(--border);
