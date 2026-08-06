@@ -38,6 +38,13 @@
 
   const fotDay = (point) => Number(point.costs?.fotPerDay) || 0;
   const rentMonth = (point) => Number(point.costs?.rentPerMonth) || 0;
+  const internetMonth = (point) => Number(point.costs?.internetPerMonth) || 0;
+  const suppliesMonth = (point) => Number(point.costs?.suppliesPerMonth) || 0;
+  const adminMonth = (point) => Number(point.costs?.adminPerMonth) || 0;
+
+  /** Месячная статья × доля дней покрытия */
+  const proRate = (full, daysCovered, daysInMonth) =>
+    daysInMonth > 0 ? (full * daysCovered) / daysInMonth : 0;
 
   function allocateWeekByMonths(week) {
     const start = parseDate(week.from);
@@ -97,20 +104,25 @@
     }
 
     const rentFull = rentMonth(point);
+    const netFull = internetMonth(point);
+    const supFull = suppliesMonth(point);
+    const admFull = adminMonth(point);
 
     return Object.values(map)
       .map((m) => {
         const fot = rate * m.daysCovered;
-        const rent =
-          m.daysInMonth > 0
-            ? (rentFull * m.daysCovered) / m.daysInMonth
-            : 0;
-        const expenses = fot + rent;
+        const rent = proRate(rentFull, m.daysCovered, m.daysInMonth);
+        const internet = proRate(netFull, m.daysCovered, m.daysInMonth);
+        const supplies = proRate(supFull, m.daysCovered, m.daysInMonth);
+        const admin = proRate(admFull, m.daysCovered, m.daysInMonth);
+        const expenses = fot + rent + internet + supplies + admin;
         return {
           ...m,
           fot,
           rent,
-          rentFull,
+          internet,
+          supplies,
+          admin,
           expenses,
           net: m.revenue - expenses,
           rate,
@@ -152,7 +164,7 @@
         <p>Месяц → выручка, расходы, плюс. Подробности — по нажатию.</p>
       </section>
       <div class="point-list">${cards}</div>
-      <p class="footer">ФОТ/день: 2 400 · 2 700 · 2 000 · 2 000 · Аренда/мес: 114к · 125к · 93к · 70к</p>
+      <p class="footer">На каждой: интернет 4 500 · расходники 5 000 · админ 15 000 ₽/мес</p>
     `;
   }
 
@@ -197,7 +209,10 @@
               <div class="rows">
                 <div class="row revenue"><span class="name">Выручка</span><span class="amount">${money(m.revenue)}</span></div>
                 <div class="row cost"><span class="name">ФОТ (${moneyShort(rate)} × ${m.daysCovered})</span><span class="amount">${money(m.fot)}</span></div>
-                <div class="row cost"><span class="name">Аренда${partial ? ` (${m.daysCovered}/${m.daysInMonth})` : ""}</span><span class="amount">${money(m.rent)}</span></div>
+                <div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>
+                <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
+                <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
+                <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
                 <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
                 <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
               </div>
@@ -213,7 +228,7 @@
       <div class="topbar">
         <div class="brand">
           <strong>${point.title}</strong>
-          <small>ФОТ ${moneyShort(rate)}/день · аренда ${moneyShort(rentMonth(point))}/мес</small>
+          <small>ФОТ ${moneyShort(rate)}/день · фикс. ${moneyShort(rentMonth(point) + internetMonth(point) + suppliesMonth(point) + adminMonth(point))}/мес</small>
         </div>
         <span class="badge">${months.length} мес.</span>
       </div>
@@ -226,7 +241,7 @@
       </section>
       <div class="section-title"><h2>Месяцы</h2><span>нажми, чтобы открыть</span></div>
       <div class="cards">${monthCards}</div>
-      <p class="footer">Расходы = ФОТ + аренда. Интернет и расходники — позже.</p>
+      <p class="footer">Расходы = ФОТ + аренда + интернет + расходники + админ. Неполный месяц — пропорционально дням.</p>
     `;
   }
 
