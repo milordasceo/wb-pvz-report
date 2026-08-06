@@ -9,7 +9,7 @@
 window.PVZ_DATA = {
   meta: {
     currency: "₽",
-    note: "Выручка = «к выплате» из ЛК WB. ФОТ = ставка в день × дни. Интернет / расходники / аренда пока не внесены.",
+    note: "Выручка = «к выплате» из ЛК WB. ФОТ = ставка/день × дни. Аренда = месячная (в неполном месяце — по дням).",
     monthFormula: "Месяц = сумма долей недель по календарным дням. Неполный: факт + оценка (день × 30/31).",
     merges: [
       "Тамбовская 41 + 39а → одна точка",
@@ -24,7 +24,7 @@ window.PVZ_DATA = {
       title: "Тамбовская (41 / 39а)",
       address: "Новосибирск · Тамбовская 41 + 39а (склеено)",
       file: "pvz-1.html",
-      costs: { fotPerDay: 2400, internet: null, supplies: null, rent: null },
+      costs: { fotPerDay: 2400, rentPerMonth: 114000, internet: null, supplies: null },
       weeks: [
         { period: "27 октября – 2 ноября 2025", from: "2025-10-27", to: "2025-11-02", revenue: 47995.39 },
         { period: "3–9 ноября 2025", from: "2025-11-03", to: "2025-11-09", revenue: 58080.89 },
@@ -74,7 +74,7 @@ window.PVZ_DATA = {
       title: "Кропоткина, 130/7",
       address: "Новосибирск, Улица Кропоткина, 130/7",
       file: "pvz-2.html",
-      costs: { fotPerDay: 2700, internet: null, supplies: null, rent: null },
+      costs: { fotPerDay: 2700, rentPerMonth: 125000, internet: null, supplies: null },
       weeks: [
         { period: "27 октября – 2 ноября 2025", from: "2025-10-27", to: "2025-11-02", revenue: 59957.08 },
         { period: "3–9 ноября 2025", from: "2025-11-03", to: "2025-11-09", revenue: 66313.72 },
@@ -124,7 +124,7 @@ window.PVZ_DATA = {
       title: "Железнодорожная, 2а",
       address: "Новосибирск, Железнодорожная Улица, 2а",
       file: "pvz-3.html",
-      costs: { fotPerDay: 2000, internet: null, supplies: null, rent: null },
+      costs: { fotPerDay: 2000, rentPerMonth: 93000, internet: null, supplies: null },
       weeks: [
         { period: "27 октября – 2 ноября 2025", from: "2025-10-27", to: "2025-11-02", revenue: 24853.25 },
         { period: "3–9 ноября 2025", from: "2025-11-03", to: "2025-11-09", revenue: 33555.77 },
@@ -174,7 +174,7 @@ window.PVZ_DATA = {
       title: "Герцена (10к2 / 12)",
       address: "Новосибирск · Герцена 10к2 + 12 (склеено)",
       file: "pvz-4.html",
-      costs: { fotPerDay: 2000, internet: null, supplies: null, rent: null },
+      costs: { fotPerDay: 2000, rentPerMonth: 70000, internet: null, supplies: null },
       weeks: [
         // до марта 2026 в ЛК в основном Герцена 12
         { period: "27 октября – 2 ноября 2025", from: "2025-10-27", to: "2025-11-02", revenue: 21702.58 },
