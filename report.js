@@ -364,7 +364,7 @@
                     : ""
                 }
                 <div class="row cost"><span class="name">ФОТ (${moneyShort(rate)} × ${m.daysCovered})</span><span class="amount">${money(m.fot)}</span></div>
-                <div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>
+                ${m.rent > 0 ? `<div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>` : ""}
                 <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
                 <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
                 <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
