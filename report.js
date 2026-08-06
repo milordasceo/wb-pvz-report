@@ -126,14 +126,14 @@
           <strong>Wildberries · ПВЗ</strong>
           <small>Новосибирск · выручка по месяцам</small>
         </div>
-        <span class="badge">16 мар – 2 авг 2026</span>
+        <span class="badge">${meta.period || "период"}</span>
       </div>
       <section class="hero">
         <h1>4 пункта выдачи</h1>
-        <p>Отчёт сгруппирован <strong>по месяцам</strong>. Недели, пересекающие границу месяца, делятся по дням.</p>
+        <p>Отчёт сгруппирован <strong>по месяцам</strong>. Недели на стыке месяцев делятся по дням.</p>
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Точек</span><span class="value">4</span></div>
-          <div class="kpi"><span class="label">Месяцев</span><span class="value">6</span></div>
+          <div class="kpi"><span class="label">Недель</span><span class="value">${points[0]?.weeks?.length || "—"}</span></div>
           <div class="kpi"><span class="label">Затраты</span><span class="value">ждут</span></div>
         </div>
       </section>
