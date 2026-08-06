@@ -1,4 +1,9 @@
 (function () {
+  const MONTHS_RU = [
+    "январь", "февраль", "март", "апрель", "май", "июнь",
+    "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+  ];
+
   const money = (n) => {
     if (n == null || Number.isNaN(n)) return "—";
     const sign = n < 0 ? "−" : "";
@@ -10,25 +15,84 @@
 
   const sum = (arr, key) => arr.reduce((a, x) => a + (Number(x[key]) || 0), 0);
 
-  const weekCosts = (point, week) => {
-    if (!point.costs) return null;
-    if (Array.isArray(point.costs)) {
-      const row = point.costs.find((c) => c.from === week.from);
-      return row || null;
-    }
-    // fixed weekly costs object: { fot, internet, supplies, rent }
-    return point.costs;
+  const parseDate = (s) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d);
   };
 
-  const netOf = (revenue, costs) => {
-    if (!costs) return null;
-    const totalCost =
-      (costs.fot || 0) +
-      (costs.internet || 0) +
-      (costs.supplies || 0) +
-      (costs.rent || 0);
-    return revenue - totalCost;
+  const ymd = (dt) =>
+    `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+
+  const daysInMonth = (year, monthIndex) => new Date(year, monthIndex + 1, 0).getDate();
+
+  const monthKey = (year, monthIndex) =>
+    `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+
+  const monthTitle = (key) => {
+    const [y, m] = key.split("-").map(Number);
+    const name = MONTHS_RU[m - 1];
+    return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${y}`;
   };
+
+  /** Разбивает недельную выручку по календарным месяцам пропорционально дням */
+  function allocateWeekByMonths(week) {
+    const start = parseDate(week.from);
+    const end = parseDate(week.to);
+    const dayMap = {}; // key -> day count
+    let totalDays = 0;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = monthKey(d.getFullYear(), d.getMonth());
+      dayMap[key] = (dayMap[key] || 0) + 1;
+      totalDays += 1;
+    }
+    if (totalDays === 0) return [];
+    return Object.keys(dayMap)
+      .sort()
+      .map((key) => ({
+        key,
+        days: dayMap[key],
+        revenue: (week.revenue * dayMap[key]) / totalDays,
+        week,
+      }));
+  }
+
+  /** Месяцы точки: выручка, дни покрытия, недели */
+  function buildMonths(point) {
+    const map = {};
+
+    for (const week of point.weeks) {
+      const parts = allocateWeekByMonths(week);
+      for (const part of parts) {
+        if (!map[part.key]) {
+          const [y, m] = part.key.split("-").map(Number);
+          map[part.key] = {
+            key: part.key,
+            year: y,
+            monthIndex: m - 1,
+            revenue: 0,
+            daysCovered: 0,
+            daysInMonth: daysInMonth(y, m - 1),
+            weeks: [],
+          };
+        }
+        const bucket = map[part.key];
+        bucket.revenue += part.revenue;
+        bucket.daysCovered += part.days;
+        bucket.weeks.push({
+          period: week.period,
+          from: week.from,
+          to: week.to,
+          weekRevenue: week.revenue,
+          daysInMonth: part.days,
+          revenueInMonth: part.revenue,
+          note: week.note || null,
+          split: parts.length > 1,
+        });
+      }
+    }
+
+    return Object.values(map).sort((a, b) => (a.key < b.key ? 1 : -1)); // new first
+  }
 
   function renderIndex() {
     const root = document.getElementById("app");
@@ -37,45 +101,48 @@
 
     const cards = points
       .map((p) => {
+        const months = buildMonths(p);
         const rev = sum(p.weeks, "revenue");
-        const last4 = p.weeks.slice(-4);
-        const last4Sum = sum(last4, "revenue");
-        const m31 = (last4Sum / 28) * 31;
+        const monthLines = months
+          .map((m) => `${monthTitle(m.key)}: ${money(m.revenue)}`)
+          .join(" · ");
         return `
           <a class="point-link" href="${p.file}">
             <div class="meta">
               <strong>${p.title}</strong>
-              <small>ПВЗ #${p.code} · ${p.weeks.length} нед. · выручка ${money(rev)}</small>
-              <small>Оценка / 31 дн.: ${money(m31)}</small>
+              <small>ПВЗ #${p.code} · всего ${money(rev)}</small>
+              <small class="month-preview">${monthLines}</small>
             </div>
             <span class="arrow">→</span>
           </a>`;
       })
       .join("");
 
-    const weekCount = points[0]?.weeks?.length || 0;
     const mergeLines = (meta.merges || []).map((m) => `• ${m}`).join("<br>");
 
     root.innerHTML = `
       <div class="topbar">
         <div class="brand">
           <strong>Wildberries · ПВЗ</strong>
-          <small>Новосибирск · выручка «к выплате»</small>
+          <small>Новосибирск · выручка по месяцам</small>
         </div>
         <span class="badge">16 мар – 2 авг 2026</span>
       </div>
       <section class="hero">
         <h1>4 пункта выдачи</h1>
-        <p>Недельная выручка из ЛК. Дубли адресов/кодов склеены в одну точку.</p>
+        <p>Отчёт сгруппирован <strong>по месяцам</strong>. Недели, пересекающие границу месяца, делятся по дням.</p>
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Точек</span><span class="value">4</span></div>
-          <div class="kpi"><span class="label">Недель</span><span class="value">${weekCount}</span></div>
+          <div class="kpi"><span class="label">Месяцев</span><span class="value">6</span></div>
           <div class="kpi"><span class="label">Затраты</span><span class="value">ждут</span></div>
         </div>
       </section>
       <div class="section-title"><h2>Точки</h2><span>открыть отчёт</span></div>
       <div class="point-list">${cards}</div>
-      <div class="note">${meta.note}<br><br>${mergeLines}<br><br>${meta.monthFormula}</div>
+      <div class="note">
+        ${meta.note}<br><br>${mergeLines}<br><br>
+        <strong>Как считается месяц:</strong> сумма долей недельной выручки, попавших в календарный месяц (пропорция по дням).
+      </div>
       <p class="footer">WB ПВЗ · Новосибирск</p>
     `;
   }
@@ -85,59 +152,61 @@
     const point = window.PVZ_DATA?.points?.find((p) => p.id === pointId);
     if (!root || !point) return;
 
-    const weeks = [...point.weeks].reverse(); // newest first
+    const months = buildMonths(point);
     const totalRev = sum(point.weeks, "revenue");
-    const last4 = point.weeks.slice(-4);
-    const last4Sum = sum(last4, "revenue");
-    const perDay = last4Sum / 28;
-    const m30 = perDay * 30;
-    const m31 = perDay * 31;
+    const fullMonths = months.filter((m) => m.daysCovered >= m.daysInMonth);
+    const bestMonth = months.reduce(
+      (a, b) => (b.revenue > (a?.revenue || -Infinity) ? b : a),
+      null
+    );
 
-    const weekCards = weeks
-      .map((w, i) => {
-        const n = point.weeks.length - i;
-        const costs = weekCosts(point, w);
-        const net = netOf(w.revenue, costs);
-        const pill =
-          net == null
-            ? `<span class="profit-pill" style="color:#c8bfff;background:rgba(124,92,255,.12);border-color:rgba(124,92,255,.35)">выручка</span>`
-            : net >= 0
-              ? `<span class="profit-pill plus">+${money(net).replace(" ₽", "")} ₽</span>`
-              : `<span class="profit-pill minus">${money(net)}</span>`;
+    const monthCards = months
+      .map((m) => {
+        const partial = m.daysCovered < m.daysInMonth;
+        const perDay = m.daysCovered > 0 ? m.revenue / m.daysCovered : 0;
+        const fullEstimate = perDay * m.daysInMonth;
+        const coverage = `${m.daysCovered} из ${m.daysInMonth} дн.`;
 
-        const costRows = costs
-          ? `
-            <div class="row cost"><span class="name">ФОТ</span><span class="amount">${money(costs.fot)}</span></div>
-            <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(costs.internet)}</span></div>
-            <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(costs.supplies)}</span></div>
-            <div class="row cost"><span class="name">Аренда</span><span class="amount">${money(costs.rent)}</span></div>
-            <div class="row net ${net < 0 ? "negative" : ""}"><span class="name">Чистый плюс</span><span class="amount ${net >= 0 ? "plus" : "minus"}">${net >= 0 ? "+" : ""}${money(net)}</span></div>
-          `
-          : `
-            <div class="row cost"><span class="name">ФОТ</span><span class="amount">—</span></div>
-            <div class="row cost"><span class="name">Интернет</span><span class="amount">—</span></div>
-            <div class="row cost"><span class="name">Расходники</span><span class="amount">—</span></div>
-            <div class="row cost"><span class="name">Аренда</span><span class="amount">—</span></div>
-            <div class="row net"><span class="name">Чистый плюс</span><span class="amount">нужны затраты</span></div>
-          `;
-
-        const mergeNote = w.note
-          ? `<div class="row" style="background:transparent;padding:0.2rem 0.65rem 0;"><span class="name" style="font-size:0.75rem">склейка: ${w.note}</span><span></span></div>`
-          : "";
+        const weekRows = m.weeks
+          .map((w) => {
+            const splitHint = w.split
+              ? ` · ${w.daysInMonth} дн. в этом месяце`
+              : "";
+            const note = w.note ? ` · ${w.note}` : "";
+            return `
+              <div class="row">
+                <span class="name">${w.period}${splitHint}${note}</span>
+                <span class="amount">${money(w.revenueInMonth)}</span>
+              </div>`;
+          })
+          .join("");
 
         return `
-          <article class="card">
+          <article class="card month-card">
             <div class="card-head">
               <div>
-                <h3>Неделя ${n}</h3>
-                <span class="week-range">${w.period}</span>
+                <h3>${monthTitle(m.key)}</h3>
+                <span class="week-range">${coverage}${partial ? " · неполный месяц" : " · полный месяц"}</span>
               </div>
-              ${pill}
+              <span class="profit-pill" style="color:#c8bfff;background:rgba(124,92,255,.12);border-color:rgba(124,92,255,.35)">
+                ${money(m.revenue)}
+              </span>
             </div>
             <div class="rows">
-              <div class="row revenue"><span class="name">Выручка (к выплате)</span><span class="amount">${money(w.revenue)}</span></div>
-              ${mergeNote}
-              ${costRows}
+              <div class="row revenue">
+                <span class="name">Выручка за месяц</span>
+                <span class="amount">${money(m.revenue)}</span>
+              </div>
+              ${
+                partial
+                  ? `<div class="row">
+                      <span class="name">Оценка на полный месяц (день × ${m.daysInMonth})</span>
+                      <span class="amount">${money(fullEstimate)}</span>
+                    </div>`
+                  : ""
+              }
+              <div class="week-block-title">Недели в составе</div>
+              ${weekRows}
             </div>
           </article>`;
       })
@@ -150,28 +219,30 @@
           <strong>${point.title}</strong>
           <small>ПВЗ #${point.code} · ${point.address}</small>
         </div>
-        <span class="badge">${point.weeks.length} нед.</span>
+        <span class="badge">${months.length} мес.</span>
       </div>
       <section class="hero">
-        <h1>Финансовый отчёт</h1>
-        <p>Выручка по неделям. Оценка месяца — по 4 последним неделям.</p>
+        <h1>Выручка по месяцам</h1>
+        <p>Сводка: месяц → сумма. Ниже — из каких недель она сложилась.</p>
         <div class="kpi-grid">
-          <div class="kpi"><span class="label">Выручка (10 нед.)</span><span class="value">${money(totalRev)}</span></div>
-          <div class="kpi"><span class="label">4 нед. (сумма)</span><span class="value">${money(last4Sum)}</span></div>
-          <div class="kpi"><span class="label">В день (4 нед./28)</span><span class="value">${money(perDay)}</span></div>
-          <div class="kpi"><span class="label">Оценка ×30</span><span class="value">${money(m30)}</span></div>
-          <div class="kpi"><span class="label">Оценка ×31</span><span class="value">${money(m31)}</span></div>
+          <div class="kpi"><span class="label">Всего за период</span><span class="value">${money(totalRev)}</span></div>
+          <div class="kpi"><span class="label">Месяцев</span><span class="value">${months.length}</span></div>
+          <div class="kpi"><span class="label">Полных месяцев</span><span class="value">${fullMonths.length}</span></div>
+          <div class="kpi"><span class="label">Лучший месяц</span><span class="value" style="font-size:0.9rem">${bestMonth ? monthTitle(bestMonth.key) : "—"}</span></div>
+          <div class="kpi"><span class="label">Сумма лучшего</span><span class="value">${bestMonth ? money(bestMonth.revenue) : "—"}</span></div>
           <div class="kpi"><span class="label">Чистый плюс</span><span class="value">ждём затраты</span></div>
         </div>
       </section>
+
       <div class="section-title">
-        <h2>По неделям</h2>
+        <h2>Месяцы</h2>
         <span>новые сверху</span>
       </div>
-      <div class="cards">${weekCards}</div>
+      <div class="cards">${monthCards}</div>
+
       <div class="note">
-        <strong>Месяц:</strong> (сумма 4 недель ÷ 28) × 30/31.<br>
-        Последние 4 недели: 27 апр – 24 мая → день ${money(perDay)}, месяц 30д ${money(m30)}, 31д ${money(m31)}.<br>
+        <strong>Месячная выручка</strong> = сумма долей недельных выплат, попавших в календарный месяц (деление по дням, если неделя на стыке).<br>
+        <strong>Неполный месяц</strong> (март с 16-го, август до 2-го): показана фактическая сумма и оценка «на полный месяц» = (факт / дни покрытия) × дней в месяце.<br>
         Затраты (ФОТ, интернет, расходники, аренда) пока не внесены.
       </div>
       <p class="footer">${point.title} · #${point.code}</p>
