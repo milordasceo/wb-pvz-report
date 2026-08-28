@@ -162,6 +162,7 @@
   }
 
   const EXCLUDE_KEY = "wb-pvz-excluded";
+  const FORECAST_KEY = "wb-pvz-forecast-on";
 
   function getExcludedIds() {
     try {
@@ -179,6 +180,43 @@
     } catch {
       /* ignore */
     }
+  }
+
+  function isForecastOn() {
+    try {
+      const raw = localStorage.getItem(FORECAST_KEY);
+      if (raw === null) return true; // по умолчанию включён
+      return raw === "1" || raw === "true";
+    } catch {
+      return true;
+    }
+  }
+
+  function setForecastOn(on) {
+    try {
+      localStorage.setItem(FORECAST_KEY, on ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function renderForecastToggle() {
+    const on = isForecastOn();
+    return `
+      <button type="button" class="forecast-toggle ${on ? "on" : "off"}" id="forecast-toggle" aria-pressed="${on}">
+        <span class="ft-dot"></span>
+        Прогноз: <strong>${on ? "вкл" : "выкл"}</strong>
+      </button>`;
+  }
+
+  function bindForecastToggle(rerender) {
+    const btn = document.getElementById("forecast-toggle");
+    if (!btn) return;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      setForecastOn(!isForecastOn());
+      rerender();
+    });
   }
 
   function toggleExcluded(id) {
@@ -498,22 +536,27 @@
         ? selectedStats.reduce((a, s) => (s.totalNet > a.totalNet ? s : a), selectedStats[0])
         : null;
     const networkMonths = buildNetworkMonths(selected);
-    const netForecast =
-      window.PVZ_FORECAST?.forecastNetwork?.(selected, buildMonths, 3) || {
-        ok: false,
-      };
+    const showForecast = isForecastOn();
+    const netForecast = showForecast
+      ? window.PVZ_FORECAST?.forecastNetwork?.(selected, buildMonths, 3) || {
+          ok: false,
+        }
+      : { ok: false, months: [] };
     const networkChart = renderProfitChart(networkMonths, {
       title: "Прибыль сети",
-      subtitle:
-        selected.length === points.length
+      subtitle: showForecast
+        ? selected.length === points.length
           ? "факт + прогноз · подробности →"
-          : `без ${points.length - selected.length} · факт + прогноз`,
+          : `без ${points.length - selected.length} · факт + прогноз`
+        : selected.length === points.length
+          ? "только факт · подробности →"
+          : `без ${points.length - selected.length} · только факт`,
       href: "network.html",
-      forecast: netForecast.ok ? netForecast.months : [],
+      forecast: showForecast && netForecast.ok ? netForecast.months : [],
     });
-    const forecastPanel = renderForecastPanel(netForecast, {
-      title: "Прогноз сети · чистый плюс",
-    });
+    const forecastPanel = showForecast
+      ? renderForecastPanel(netForecast, { title: "Прогноз сети · чистый плюс" })
+      : "";
 
     const cards = stats
       .map(({ p, totalNet, last, profitable, months, inNetwork }) => {
@@ -549,6 +592,7 @@
         </div>
         <span class="badge">${meta.period || ""}</span>
       </div>
+      <div class="toolbar-row">${renderForecastToggle()}</div>
       <section class="hero compact">
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Выручка продаж (сеть)</span><span class="value">${moneyShort(allRev)}</span></div>
@@ -564,6 +608,7 @@
     `;
 
     bindFilterBar(renderIndex);
+    bindForecastToggle(renderIndex);
     bindChartHits();
   }
 
@@ -581,21 +626,26 @@
     const totalNet = months.reduce((a, m) => a + m.net, 0);
     const last = lastUsefulMonth(months);
     const profitable = months.filter((m) => m.net >= 0).length;
-    const netForecast =
-      window.PVZ_FORECAST?.forecastNetwork?.(selected, buildMonths, 3) || {
-        ok: false,
-      };
+    const showForecast = isForecastOn();
+    const netForecast = showForecast
+      ? window.PVZ_FORECAST?.forecastNetwork?.(selected, buildMonths, 3) || {
+          ok: false,
+        }
+      : { ok: false, months: [] };
     const chart = renderProfitChart(months, {
       title: "Прибыль сети",
-      subtitle:
-        selected.length === points.length
+      subtitle: showForecast
+        ? selected.length === points.length
           ? "факт + прогноз · 3 мес."
-          : `${selected.length} из ${points.length} · факт + прогноз`,
-      forecast: netForecast.ok ? netForecast.months : [],
+          : `${selected.length} из ${points.length} · факт + прогноз`
+        : selected.length === points.length
+          ? "только факт"
+          : `${selected.length} из ${points.length} · только факт`,
+      forecast: showForecast && netForecast.ok ? netForecast.months : [],
     });
-    const forecastPanel = renderForecastPanel(netForecast, {
-      title: "Прогноз сети · чистый плюс",
-    });
+    const forecastPanel = showForecast
+      ? renderForecastPanel(netForecast, { title: "Прогноз сети · чистый плюс" })
+      : "";
 
     const monthCards = months
       .map((m) => {
@@ -671,6 +721,7 @@
         </div>
         <span class="badge">${months.length} мес.</span>
       </div>
+      ${shareOnly ? "" : `<div class="toolbar-row">${renderForecastToggle()}</div>`}
       ${shareOnly ? "" : renderFilterBar(points, excluded)}
       <section class="hero compact">
         <div class="kpi-grid">
@@ -696,6 +747,7 @@
       const btn = document.getElementById("share-btn");
       if (btn) btn.addEventListener("click", () => copyShareLink(btn));
       bindFilterBar(renderNetwork);
+      bindForecastToggle(renderNetwork);
     }
     if (shareOnly) document.body.classList.add("share-only");
     bindChartHits();
@@ -763,16 +815,20 @@
     const last = lastUsefulMonth(months);
     const profitable = months.filter((m) => m.net >= 0).length;
 
-    const pointForecast =
-      window.PVZ_FORECAST?.forecastPoint?.(point, months, 3) || { ok: false };
+    const showForecast = isForecastOn();
+    const pointForecast = showForecast
+      ? window.PVZ_FORECAST?.forecastPoint?.(point, months, 3) || { ok: false }
+      : { ok: false, months: [] };
     const chart = renderProfitChart(months, {
       title: "Прибыль по месяцам",
-      subtitle: "факт + прогноз · нажми точку — сумма",
-      forecast: pointForecast.ok ? pointForecast.months : [],
+      subtitle: showForecast
+        ? "факт + прогноз · нажми точку — сумма"
+        : "только факт · нажми точку — сумма",
+      forecast: showForecast && pointForecast.ok ? pointForecast.months : [],
     });
-    const forecastPanel = renderForecastPanel(pointForecast, {
-      title: `Прогноз · ${point.title}`,
-    });
+    const forecastPanel = showForecast
+      ? renderForecastPanel(pointForecast, { title: `Прогноз · ${point.title}` })
+      : "";
 
     const monthCards = months
       .map((m) => {
@@ -856,6 +912,7 @@
         </div>
         <span class="badge">${months.length} мес.</span>
       </div>
+      ${shareOnly ? "" : `<div class="toolbar-row">${renderForecastToggle()}</div>`}
       <section class="hero compact">
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Выручка (продажи)</span><span class="value">${moneyShort(totalRev)}</span></div>
@@ -883,6 +940,7 @@
       if (btn) {
         btn.addEventListener("click", () => copyShareLink(btn));
       }
+      bindForecastToggle(() => renderPoint(pointId));
     }
 
     // в режиме share — не даём «случайно» уйти на index через history, если открыли с share
