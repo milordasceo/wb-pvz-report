@@ -748,7 +748,7 @@
                 ${m.rent > 0 ? `<div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>` : ""}
                 <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
                 <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
-                <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
+                ${m.admin > 0 ? `<div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>` : ""}
                 <div class="row cost"><span class="name">Налоги (6%)</span><span class="amount">${money(m.tax)}</span></div>
                 <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
                 <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс сети</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
@@ -957,7 +957,7 @@
                   ${m.rent > 0 ? `<div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>` : ""}
                   <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
                   <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
-                  <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
+                  ${m.admin > 0 ? `<div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>` : ""}
                   <div class="row cost"><span class="name">Налоги (6% от выручки)</span><span class="amount">${money(m.tax)}</span></div>
                   <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
                   <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
