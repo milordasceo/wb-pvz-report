@@ -291,11 +291,7 @@
       return `<div class="chart-empty">Мало данных для графика</div>`;
     }
     const title = opts.title || "Прибыль по месяцам";
-    const subtitle = opts.subtitle || "выше 0 — в плюсе, ниже — убыток";
-    const wrapTag = opts.href ? "a" : "div";
-    const wrapAttrs = opts.href
-      ? ` href="${opts.href}" class="chart-wrap chart-link"`
-      : ` class="chart-wrap"`;
+    const subtitle = opts.subtitle || "нажми на точку месяца — увидишь сумму";
 
     const w = 640;
     const h = 220;
@@ -313,7 +309,6 @@
       maxV += 1;
       minV -= 1;
     }
-    // padding 8%
     const span = maxV - minV;
     minV -= span * 0.08;
     maxV += span * 0.08;
@@ -325,7 +320,6 @@
     const points = data.map((d, i) => `${xAt(i).toFixed(1)},${yAt(d.net).toFixed(1)}`).join(" ");
     const areaPoints = `${xAt(0).toFixed(1)},${y0.toFixed(1)} ${points} ${xAt(data.length - 1).toFixed(1)},${y0.toFixed(1)}`;
 
-    // grid labels
     const ticks = [minV, 0, maxV].filter((v, i, a) => a.indexOf(v) === i);
     const tickSvg = ticks
       .map((v) => {
@@ -340,7 +334,6 @@
       })
       .join("");
 
-    // show ~5 labels on x
     const step = Math.max(1, Math.ceil(data.length / 5));
     const labels = data
       .map((d, i) => {
@@ -352,30 +345,73 @@
     const dots = data
       .map((d, i) => {
         const cls = d.net >= 0 ? "dot-plus" : "dot-minus";
-        return `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(d.net).toFixed(1)}" r="4" class="${cls}" />`;
+        const cx = xAt(i).toFixed(1);
+        const cy = yAt(d.net).toFixed(1);
+        const monthLabel = monthTitle(d.key);
+        const tip = `${d.net >= 0 ? "+" : ""}${moneyShort(d.net)}`;
+        return `
+          <g class="chart-hit" role="button" tabindex="0"
+             data-month="${monthLabel}" data-net="${d.net}" data-tip="${tip}"
+             transform="translate(${cx}, ${cy})">
+            <circle r="16" class="hit-area" />
+            <circle r="4.5" class="${cls} chart-dot" />
+          </g>`;
       })
       .join("");
 
     const cta = opts.href
-      ? `<span class="chart-cta">Подробности по сети →</span>`
+      ? `<a class="chart-cta" href="${opts.href}">Подробности по сети →</a>`
       : "";
 
     return `
-      <${wrapTag}${wrapAttrs}>
+      <div class="chart-wrap">
         <div class="chart-head">
           <strong>${title}</strong>
           <span>${subtitle}</span>
         </div>
+        <div class="chart-value" hidden></div>
         <svg class="profit-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${title}">
           ${tickSvg}
           <line x1="${padL}" y1="${y0.toFixed(1)}" x2="${w - padR}" y2="${y0.toFixed(1)}" class="chart-zero" />
           <polygon points="${areaPoints}" class="chart-area" />
           <polyline points="${points}" class="chart-line" fill="none" />
-          ${dots}
           ${labels}
+          ${dots}
         </svg>
         ${cta}
-      </${wrapTag}>`;
+      </div>`;
+  }
+
+  function bindChartHits() {
+    document.querySelectorAll(".chart-wrap").forEach((wrap) => {
+      const valueEl = wrap.querySelector(".chart-value");
+      if (!valueEl) return;
+
+      const selectHit = (hit) => {
+        wrap.querySelectorAll(".chart-hit").forEach((h) => h.classList.remove("selected"));
+        hit.classList.add("selected");
+        const month = hit.getAttribute("data-month") || "";
+        const tip = hit.getAttribute("data-tip") || "";
+        const net = Number(hit.getAttribute("data-net"));
+        valueEl.hidden = false;
+        valueEl.className = `chart-value ${net >= 0 ? "plus" : "minus"}`;
+        valueEl.innerHTML = `<span class="cv-month">${month}</span><span class="cv-net">${tip}</span>`;
+      };
+
+      wrap.querySelectorAll(".chart-hit").forEach((hit) => {
+        hit.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectHit(hit);
+        });
+        hit.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            selectHit(hit);
+          }
+        });
+      });
+    });
   }
 
   function renderIndex() {
@@ -459,6 +495,7 @@
     `;
 
     bindFilterBar(renderIndex);
+    bindChartHits();
   }
 
   function renderNetwork() {
@@ -583,6 +620,7 @@
       bindFilterBar(renderNetwork);
     }
     if (shareOnly) document.body.classList.add("share-only");
+    bindChartHits();
   }
 
   function isShareMode() {
@@ -763,6 +801,7 @@
     if (shareOnly) {
       document.body.classList.add("share-only");
     }
+    bindChartHits();
   }
 
   window.renderIndex = renderIndex;
