@@ -377,6 +377,15 @@ details.month-card[open] > summary::after {
   gap: 0.85rem;
 }
 
+.point-card {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.point-card.excluded .point-link {
+  opacity: 0.55;
+}
+
 .point-link {
   display: flex;
   align-items: center;
@@ -388,6 +397,77 @@ details.month-card[open] > summary::after {
   border: 1px solid var(--border);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.filter-bar {
+  margin: 0 0 0.85rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.filter-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.filter-bar-head strong {
+  font-size: 0.92rem;
+}
+
+.filter-bar-head span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.filter-chip {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.filter-chip .chip-mark {
+  font-size: 0.75rem;
+}
+
+.filter-chip.on {
+  color: #b8ffd7;
+  background: rgba(61, 214, 140, 0.12);
+  border-color: rgba(61, 214, 140, 0.4);
+}
+
+.filter-chip.off {
+  color: #ffc3c9;
+  background: rgba(255, 107, 122, 0.1);
+  border-color: rgba(255, 107, 122, 0.35);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 195, 201, 0.5);
+}
+
+.filter-chip.mini {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.6rem;
+  width: fit-content;
 }
 
 .point-link:hover,

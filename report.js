@@ -161,6 +161,80 @@
     return months[0] || null;
   }
 
+  const EXCLUDE_KEY = "wb-pvz-excluded";
+
+  function getExcludedIds() {
+    try {
+      const raw = localStorage.getItem(EXCLUDE_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function setExcludedIds(ids) {
+    try {
+      localStorage.setItem(EXCLUDE_KEY, JSON.stringify([...new Set(ids)]));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function toggleExcluded(id) {
+    const cur = getExcludedIds();
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    setExcludedIds(next);
+    return next;
+  }
+
+  function activePoints(points) {
+    const excluded = new Set(getExcludedIds());
+    return points.filter((p) => !excluded.has(p.id));
+  }
+
+  function renderFilterBar(points, excluded) {
+    const excl = new Set(excluded);
+    const active = points.filter((p) => !excl.has(p.id)).length;
+    const chips = points
+      .map((p) => {
+        const on = !excl.has(p.id);
+        return `
+          <button type="button" class="filter-chip ${on ? "on" : "off"}" data-point-id="${p.id}" aria-pressed="${on}">
+            <span class="chip-mark">${on ? "✓" : "×"}</span>
+            ${p.title}
+          </button>`;
+      })
+      .join("");
+
+    return `
+      <div class="filter-bar">
+        <div class="filter-bar-head">
+          <strong>В общей статистике</strong>
+          <span>${active} из ${points.length}</span>
+        </div>
+        <div class="filter-chips">${chips}</div>
+      </div>`;
+  }
+
+  function bindFilterBar(rerender) {
+    document.querySelectorAll(".filter-chip").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.getAttribute("data-point-id");
+        if (!id) return;
+        toggleExcluded(id);
+        // нельзя исключить все — оставляем хотя бы одну
+        if (activePoints(window.PVZ_DATA.points).length === 0) {
+          toggleExcluded(id); // вернуть
+          return;
+        }
+        rerender();
+      });
+    });
+  }
+
   function buildNetworkMonths(points) {
     const map = {};
     for (const p of points) {
@@ -308,6 +382,8 @@
     const root = document.getElementById("app");
     if (!root || !window.PVZ_DATA) return;
     const { points, meta } = window.PVZ_DATA;
+    const excluded = getExcludedIds();
+    const selected = activePoints(points);
 
     const stats = points.map((p) => {
       const months = buildMonths(p);
@@ -315,36 +391,49 @@
       const totalRev = months.reduce((a, m) => a + m.revenue, 0);
       const last = lastUsefulMonth(months);
       const profitable = months.filter((m) => m.net >= 0).length;
-      return { p, months, totalNet, totalRev, last, profitable };
+      return { p, months, totalNet, totalRev, last, profitable, inNetwork: !excluded.includes(p.id) };
     });
 
-    const allNet = stats.reduce((a, s) => a + s.totalNet, 0);
-    const allRev = stats.reduce((a, s) => a + s.totalRev, 0); // только продажи
-    const best = stats.reduce((a, s) => (s.totalNet > a.totalNet ? s : a), stats[0]);
-    const networkMonths = buildNetworkMonths(points);
+    const selectedStats = stats.filter((s) => s.inNetwork);
+    const allNet = selectedStats.reduce((a, s) => a + s.totalNet, 0);
+    const allRev = selectedStats.reduce((a, s) => a + s.totalRev, 0);
+    const best =
+      selectedStats.length > 0
+        ? selectedStats.reduce((a, s) => (s.totalNet > a.totalNet ? s : a), selectedStats[0])
+        : null;
+    const networkMonths = buildNetworkMonths(selected);
     const networkChart = renderProfitChart(networkMonths, {
-      title: "Прибыль всей сети",
-      subtitle: "нажми — помесячно по сети",
+      title: "Прибыль сети",
+      subtitle:
+        selected.length === points.length
+          ? "нажми — помесячно по сети"
+          : `без ${points.length - selected.length} · нажми — подробности`,
       href: "network.html",
     });
 
     const cards = stats
-      .map(({ p, totalNet, last, profitable, months }) => {
+      .map(({ p, totalNet, last, profitable, months, inNetwork }) => {
         const netCls = totalNet >= 0 ? "plus" : "minus";
         const lastNet = last ? last.net : 0;
         const lastCls = lastNet >= 0 ? "plus" : "minus";
         return `
-          <a class="point-link" href="${p.file}">
-            <div class="meta">
-              <strong>${p.title}</strong>
-              <div class="point-stats">
-                <span>Плюс за период <b class="${netCls}">${totalNet >= 0 ? "+" : ""}${moneyShort(totalNet)}</b></span>
-                <span>Последний мес. <b class="${lastCls}">${last ? (lastNet >= 0 ? "+" : "") + moneyShort(lastNet) : "—"}</b>${last ? ` · ${monthShort(last.key)}` : ""}</span>
-                <span>Месяцев в плюсе <b>${profitable} из ${months.length}</b></span>
+          <div class="point-card ${inNetwork ? "" : "excluded"}">
+            <button type="button" class="filter-chip mini ${inNetwork ? "on" : "off"}" data-point-id="${p.id}" aria-pressed="${inNetwork}" title="${inNetwork ? "Исключить из сети" : "Включить в сеть"}">
+              <span class="chip-mark">${inNetwork ? "✓" : "×"}</span>
+              ${inNetwork ? "в сети" : "вне сети"}
+            </button>
+            <a class="point-link" href="${p.file}">
+              <div class="meta">
+                <strong>${p.title}</strong>
+                <div class="point-stats">
+                  <span>Плюс за период <b class="${netCls}">${totalNet >= 0 ? "+" : ""}${moneyShort(totalNet)}</b></span>
+                  <span>Последний мес. <b class="${lastCls}">${last ? (lastNet >= 0 ? "+" : "") + moneyShort(lastNet) : "—"}</b>${last ? ` · ${monthShort(last.key)}` : ""}</span>
+                  <span>Месяцев в плюсе <b>${profitable} из ${months.length}</b></span>
+                </div>
               </div>
-            </div>
-            <span class="arrow">→</span>
-          </a>`;
+              <span class="arrow">→</span>
+            </a>
+          </div>`;
       })
       .join("");
 
@@ -358,15 +447,18 @@
       </div>
       <section class="hero compact">
         <div class="kpi-grid">
-          <div class="kpi"><span class="label">Выручка продаж (все)</span><span class="value">${moneyShort(allRev)}</span></div>
-          <div class="kpi"><span class="label">Чистый плюс</span><span class="value ${allNet >= 0 ? "plus" : "minus"}">${allNet >= 0 ? "+" : ""}${moneyShort(allNet)}</span></div>
-          <div class="kpi"><span class="label">Лучшая точка</span><span class="value" style="font-size:0.92rem">${best?.p.title || "—"}</span></div>
+          <div class="kpi"><span class="label">Выручка продаж (сеть)</span><span class="value">${moneyShort(allRev)}</span></div>
+          <div class="kpi"><span class="label">Чистый плюс (сеть)</span><span class="value ${allNet >= 0 ? "plus" : "minus"}">${allNet >= 0 ? "+" : ""}${moneyShort(allNet)}</span></div>
+          <div class="kpi"><span class="label">Лучшая в выборке</span><span class="value" style="font-size:0.92rem">${best?.p.title || "—"}</span></div>
         </div>
       </section>
+      ${renderFilterBar(points, excluded)}
       ${networkChart}
-      <div class="section-title"><h2>Точки</h2><span>открыть отчёт</span></div>
+      <div class="section-title"><h2>Точки</h2><span>✓ / × — в сети или нет</span></div>
       <div class="point-list">${cards}</div>
     `;
+
+    bindFilterBar(renderIndex);
   }
 
   function renderNetwork() {
@@ -374,7 +466,9 @@
     if (!root || !window.PVZ_DATA) return;
     const { points, meta } = window.PVZ_DATA;
     const shareOnly = isShareMode();
-    const months = buildNetworkMonths(points);
+    const excluded = getExcludedIds();
+    const selected = activePoints(points);
+    const months = buildNetworkMonths(selected);
     const totalRev = months.reduce((a, m) => a + m.revenue, 0);
     const totalSubsidy = months.reduce((a, m) => a + m.subsidy, 0);
     const totalExp = months.reduce((a, m) => a + m.expenses, 0);
@@ -382,8 +476,11 @@
     const last = lastUsefulMonth(months);
     const profitable = months.filter((m) => m.net >= 0).length;
     const chart = renderProfitChart(months, {
-      title: "Прибыль всей сети",
-      subtitle: "сумма по всем ПВЗ",
+      title: "Прибыль сети",
+      subtitle:
+        selected.length === points.length
+          ? "сумма по выбранным ПВЗ"
+          : `${selected.length} из ${points.length} точек`,
     });
 
     const monthCards = months
@@ -455,11 +552,12 @@
       </div>
       <div class="topbar">
         <div class="brand">
-          <strong>Вся сеть</strong>
-          <small>Сводка по ${points.length} ПВЗ · ${meta.period || ""}</small>
+          <strong>Сеть</strong>
+          <small>${selected.length} из ${points.length} ПВЗ · ${meta.period || ""}</small>
         </div>
         <span class="badge">${months.length} мес.</span>
       </div>
+      ${shareOnly ? "" : renderFilterBar(points, excluded)}
       <section class="hero compact">
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Выручка (продажи)</span><span class="value">${moneyShort(totalRev)}</span></div>
@@ -482,6 +580,7 @@
     if (!shareOnly) {
       const btn = document.getElementById("share-btn");
       if (btn) btn.addEventListener("click", () => copyShareLink(btn));
+      bindFilterBar(renderNetwork);
     }
     if (shareOnly) document.body.classList.add("share-only");
   }
