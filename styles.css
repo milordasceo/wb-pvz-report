@@ -386,6 +386,15 @@ details.month-card[open] > summary::after {
   opacity: 0.55;
 }
 
+.month-card-wrap {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.month-card-wrap.excluded .month-card {
+  opacity: 0.55;
+}
+
 .point-link {
   display: flex;
   align-items: center;

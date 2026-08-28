@@ -163,6 +163,7 @@
 
   const EXCLUDE_KEY = "wb-pvz-excluded";
   const FORECAST_KEY = "wb-pvz-forecast-on";
+  const MONTH_EXCLUDE_KEY = "wb-pvz-months-excluded";
 
   function getExcludedIds() {
     try {
@@ -216,6 +217,89 @@
       e.preventDefault();
       setForecastOn(!isForecastOn());
       rerender();
+    });
+  }
+
+  function getMonthExcludeMap() {
+    try {
+      const raw = localStorage.getItem(MONTH_EXCLUDE_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      return obj && typeof obj === "object" ? obj : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function getExcludedMonths(pointId) {
+    const map = getMonthExcludeMap();
+    const arr = map[pointId];
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+  }
+
+  function setExcludedMonths(pointId, keys) {
+    try {
+      const map = getMonthExcludeMap();
+      map[pointId] = [...new Set(keys)];
+      localStorage.setItem(MONTH_EXCLUDE_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function toggleExcludedMonth(pointId, monthKey) {
+    const cur = getExcludedMonths(pointId);
+    const next = cur.includes(monthKey)
+      ? cur.filter((k) => k !== monthKey)
+      : [...cur, monthKey];
+    setExcludedMonths(pointId, next);
+    return next;
+  }
+
+  function activeMonths(months, pointId) {
+    const excl = new Set(getExcludedMonths(pointId));
+    return months.filter((m) => !excl.has(m.key));
+  }
+
+  function renderMonthFilterBar(months, pointId) {
+    const excl = new Set(getExcludedMonths(pointId));
+    const active = months.filter((m) => !excl.has(m.key)).length;
+    // chips: newest first (months already newest-first)
+    const chips = months
+      .map((m) => {
+        const on = !excl.has(m.key);
+        return `
+          <button type="button" class="filter-chip ${on ? "on" : "off"}" data-month-key="${m.key}" aria-pressed="${on}">
+            <span class="chip-mark">${on ? "✓" : "×"}</span>
+            ${monthShort(m.key)}
+          </button>`;
+      })
+      .join("");
+
+    return `
+      <div class="filter-bar">
+        <div class="filter-bar-head">
+          <strong>Месяцы в статистике</strong>
+          <span>${active} из ${months.length}</span>
+        </div>
+        <div class="filter-chips">${chips}</div>
+      </div>`;
+  }
+
+  function bindMonthFilterBar(pointId, rerender, allMonthKeys) {
+    document.querySelectorAll(".filter-chip[data-month-key]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const key = btn.getAttribute("data-month-key");
+        if (!key) return;
+        toggleExcludedMonth(pointId, key);
+        const left = allMonthKeys.filter((k) => !getExcludedMonths(pointId).includes(k));
+        if (left.length === 0) {
+          toggleExcludedMonth(pointId, key); // нельзя выключить все
+          return;
+        }
+        rerender();
+      });
     });
   }
 
@@ -806,7 +890,10 @@
     if (!root || !point) return;
 
     const shareOnly = isShareMode();
-    const months = buildMonths(point);
+    const monthsAll = buildMonths(point);
+    const excludedMonths = getExcludedMonths(pointId);
+    const exclSet = new Set(excludedMonths);
+    const months = activeMonths(monthsAll, pointId);
     const rate = fotDay(point);
     const totalRev = months.reduce((a, m) => a + m.revenue, 0);
     const totalSubsidy = months.reduce((a, m) => a + m.subsidy, 0);
@@ -822,16 +909,21 @@
     const chart = renderProfitChart(months, {
       title: "Прибыль по месяцам",
       subtitle: showForecast
-        ? "факт + прогноз · нажми точку — сумма"
-        : "только факт · нажми точку — сумма",
+        ? exclSet.size
+          ? `факт + прогноз · без ${exclSet.size} мес.`
+          : "факт + прогноз · нажми точку — сумма"
+        : exclSet.size
+          ? `только факт · без ${exclSet.size} мес.`
+          : "только факт · нажми точку — сумма",
       forecast: showForecast && pointForecast.ok ? pointForecast.months : [],
     });
     const forecastPanel = showForecast
       ? renderForecastPanel(pointForecast, { title: `Прогноз · ${point.title}` })
       : "";
 
-    const monthCards = months
+    const monthCards = monthsAll
       .map((m) => {
+        const inStats = !exclSet.has(m.key);
         const netCls = m.net >= 0 ? "plus" : "minus";
         const weeks = m.weeks
           .map((w) => {
@@ -857,38 +949,49 @@
           .join("");
 
         return `
-          <details class="card month-card">
-            <summary class="month-summary">
-              <div class="month-summary-main">
-                <strong>${monthTitle(m.key)}</strong>
-                ${m.partial ? `<span class="tag">неполный · ${m.daysCovered} дн.</span>` : ""}
+          <div class="month-card-wrap ${inStats ? "" : "excluded"}">
+            ${
+              shareOnly
+                ? ""
+                : `<button type="button" class="filter-chip mini ${inStats ? "on" : "off"}" data-month-key="${m.key}" aria-pressed="${inStats}" title="${inStats ? "Исключить из статистики" : "Включить в статистику"}">
+              <span class="chip-mark">${inStats ? "✓" : "×"}</span>
+              ${inStats ? "в статистике" : "вне статистики"}
+            </button>`
+            }
+            <details class="card month-card">
+              <summary class="month-summary">
+                <div class="month-summary-main">
+                  <strong>${monthTitle(m.key)}</strong>
+                  ${m.partial ? `<span class="tag">неполный · ${m.daysCovered} дн.</span>` : ""}
+                  ${!inStats ? `<span class="tag">не в KPI / графике</span>` : ""}
+                </div>
+                <div class="month-summary-nums">
+                  <span class="ms-rev">${moneyShort(m.revenue)}</span>
+                  <span class="ms-net ${netCls}">${m.net >= 0 ? "+" : ""}${moneyShort(m.net)}</span>
+                </div>
+              </summary>
+              <div class="month-body">
+                <div class="rows">
+                  <div class="row revenue"><span class="name">Выручка (продажи)</span><span class="amount">${money(m.revenue)}</span></div>
+                  ${
+                    m.subsidy > 0
+                      ? `<div class="row revenue"><span class="name">Субсидия WB <em>(не продажи)</em></span><span class="amount">${money(m.subsidy)}</span></div>`
+                      : ""
+                  }
+                  <div class="row cost"><span class="name">ФОТ (${moneyShort(rate)} × ${m.daysCovered})</span><span class="amount">${money(m.fot)}</span></div>
+                  ${m.rent > 0 ? `<div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>` : ""}
+                  <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
+                  <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
+                  <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
+                  <div class="row cost"><span class="name">Налоги (6% от выручки)</span><span class="amount">${money(m.tax)}</span></div>
+                  <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
+                  <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
+                </div>
+                <div class="week-block-title">По неделям</div>
+                <div class="rows">${weeks}</div>
               </div>
-              <div class="month-summary-nums">
-                <span class="ms-rev">${moneyShort(m.revenue)}</span>
-                <span class="ms-net ${netCls}">${m.net >= 0 ? "+" : ""}${moneyShort(m.net)}</span>
-              </div>
-            </summary>
-            <div class="month-body">
-              <div class="rows">
-                <div class="row revenue"><span class="name">Выручка (продажи)</span><span class="amount">${money(m.revenue)}</span></div>
-                ${
-                  m.subsidy > 0
-                    ? `<div class="row revenue"><span class="name">Субсидия WB <em>(не продажи)</em></span><span class="amount">${money(m.subsidy)}</span></div>`
-                    : ""
-                }
-                <div class="row cost"><span class="name">ФОТ (${moneyShort(rate)} × ${m.daysCovered})</span><span class="amount">${money(m.fot)}</span></div>
-                ${m.rent > 0 ? `<div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>` : ""}
-                <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
-                <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
-                <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
-                <div class="row cost"><span class="name">Налоги (6% от выручки)</span><span class="amount">${money(m.tax)}</span></div>
-                <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
-                <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
-              </div>
-              <div class="week-block-title">По неделям</div>
-              <div class="rows">${weeks}</div>
-            </div>
-          </details>`;
+            </details>
+          </div>`;
       })
       .join("");
 
@@ -910,9 +1013,10 @@
           <strong>${point.title}</strong>
           <small>${point.address}</small>
         </div>
-        <span class="badge">${months.length} мес.</span>
+        <span class="badge">${months.length}/${monthsAll.length} мес.</span>
       </div>
       ${shareOnly ? "" : `<div class="toolbar-row">${renderForecastToggle()}</div>`}
+      ${shareOnly ? "" : renderMonthFilterBar(monthsAll, pointId)}
       <section class="hero compact">
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Выручка (продажи)</span><span class="value">${moneyShort(totalRev)}</span></div>
@@ -941,6 +1045,11 @@
         btn.addEventListener("click", () => copyShareLink(btn));
       }
       bindForecastToggle(() => renderPoint(pointId));
+      bindMonthFilterBar(
+        pointId,
+        () => renderPoint(pointId),
+        monthsAll.map((m) => m.key)
+      );
     }
 
     // в режиме share — не даём «случайно» уйти на index через history, если открыли с share
