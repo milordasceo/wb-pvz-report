@@ -260,31 +260,6 @@
     return months.filter((m) => !excl.has(m.key));
   }
 
-  function renderMonthFilterBar(months, pointId) {
-    const excl = new Set(getExcludedMonths(pointId));
-    const active = months.filter((m) => !excl.has(m.key)).length;
-    // chips: newest first (months already newest-first)
-    const chips = months
-      .map((m) => {
-        const on = !excl.has(m.key);
-        return `
-          <button type="button" class="filter-chip ${on ? "on" : "off"}" data-month-key="${m.key}" aria-pressed="${on}">
-            <span class="chip-mark">${on ? "✓" : "×"}</span>
-            ${monthShort(m.key)}
-          </button>`;
-      })
-      .join("");
-
-    return `
-      <div class="filter-bar">
-        <div class="filter-bar-head">
-          <strong>Месяцы в статистике</strong>
-          <span>${active} из ${months.length}</span>
-        </div>
-        <div class="filter-chips">${chips}</div>
-      </div>`;
-  }
-
   function bindMonthFilterBar(pointId, rerender, allMonthKeys) {
     document.querySelectorAll(".filter-chip[data-month-key]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
