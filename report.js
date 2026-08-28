@@ -161,11 +161,67 @@
     return months[0] || null;
   }
 
-  function renderProfitChart(monthsDesc) {
+  function buildNetworkMonths(points) {
+    const map = {};
+    for (const p of points) {
+      for (const m of buildMonths(p)) {
+        if (!map[m.key]) {
+          map[m.key] = {
+            key: m.key,
+            revenue: 0,
+            subsidy: 0,
+            fot: 0,
+            rent: 0,
+            internet: 0,
+            supplies: 0,
+            admin: 0,
+            tax: 0,
+            expenses: 0,
+            net: 0,
+            daysInMonth: m.daysInMonth,
+            daysCovered: 0,
+            partial: false,
+            byPoint: [],
+          };
+        }
+        const b = map[m.key];
+        b.revenue += m.revenue;
+        b.subsidy += m.subsidy || 0;
+        b.fot += m.fot;
+        b.rent += m.rent;
+        b.internet += m.internet;
+        b.supplies += m.supplies;
+        b.admin += m.admin;
+        b.tax += m.tax;
+        b.expenses += m.expenses;
+        b.net += m.net;
+        b.daysCovered = Math.max(b.daysCovered, m.daysCovered);
+        if (m.partial) b.partial = true;
+        b.byPoint.push({
+          id: p.id,
+          title: p.title,
+          file: p.file,
+          revenue: m.revenue,
+          expenses: m.expenses,
+          net: m.net,
+          subsidy: m.subsidy || 0,
+        });
+      }
+    }
+    return Object.values(map).sort((a, b) => (a.key < b.key ? 1 : -1));
+  }
+
+  function renderProfitChart(monthsDesc, opts = {}) {
     const data = chrono(monthsDesc);
     if (data.length < 2) {
       return `<div class="chart-empty">Мало данных для графика</div>`;
     }
+    const title = opts.title || "Прибыль по месяцам";
+    const subtitle = opts.subtitle || "выше 0 — в плюсе, ниже — убыток";
+    const wrapTag = opts.href ? "a" : "div";
+    const wrapAttrs = opts.href
+      ? ` href="${opts.href}" class="chart-wrap chart-link"`
+      : ` class="chart-wrap"`;
 
     const w = 640;
     const h = 220;
@@ -226,13 +282,17 @@
       })
       .join("");
 
+    const cta = opts.href
+      ? `<span class="chart-cta">Подробности по сети →</span>`
+      : "";
+
     return `
-      <div class="chart-wrap">
+      <${wrapTag}${wrapAttrs}>
         <div class="chart-head">
-          <strong>Прибыль по месяцам</strong>
-          <span>выше 0 — в плюсе, ниже — убыток</span>
+          <strong>${title}</strong>
+          <span>${subtitle}</span>
         </div>
-        <svg class="profit-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="График прибыли по месяцам">
+        <svg class="profit-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${title}">
           ${tickSvg}
           <line x1="${padL}" y1="${y0.toFixed(1)}" x2="${w - padR}" y2="${y0.toFixed(1)}" class="chart-zero" />
           <polygon points="${areaPoints}" class="chart-area" />
@@ -240,7 +300,8 @@
           ${dots}
           ${labels}
         </svg>
-      </div>`;
+        ${cta}
+      </${wrapTag}>`;
   }
 
   function renderIndex() {
@@ -260,6 +321,12 @@
     const allNet = stats.reduce((a, s) => a + s.totalNet, 0);
     const allRev = stats.reduce((a, s) => a + s.totalRev, 0); // только продажи
     const best = stats.reduce((a, s) => (s.totalNet > a.totalNet ? s : a), stats[0]);
+    const networkMonths = buildNetworkMonths(points);
+    const networkChart = renderProfitChart(networkMonths, {
+      title: "Прибыль всей сети",
+      subtitle: "нажми — помесячно по сети",
+      href: "network.html",
+    });
 
     const cards = stats
       .map(({ p, totalNet, last, profitable, months }) => {
@@ -296,9 +363,127 @@
           <div class="kpi"><span class="label">Лучшая точка</span><span class="value" style="font-size:0.92rem">${best?.p.title || "—"}</span></div>
         </div>
       </section>
+      ${networkChart}
       <div class="section-title"><h2>Точки</h2><span>открыть отчёт</span></div>
       <div class="point-list">${cards}</div>
     `;
+  }
+
+  function renderNetwork() {
+    const root = document.getElementById("app");
+    if (!root || !window.PVZ_DATA) return;
+    const { points, meta } = window.PVZ_DATA;
+    const shareOnly = isShareMode();
+    const months = buildNetworkMonths(points);
+    const totalRev = months.reduce((a, m) => a + m.revenue, 0);
+    const totalSubsidy = months.reduce((a, m) => a + m.subsidy, 0);
+    const totalExp = months.reduce((a, m) => a + m.expenses, 0);
+    const totalNet = months.reduce((a, m) => a + m.net, 0);
+    const last = lastUsefulMonth(months);
+    const profitable = months.filter((m) => m.net >= 0).length;
+    const chart = renderProfitChart(months, {
+      title: "Прибыль всей сети",
+      subtitle: "сумма по всем ПВЗ",
+    });
+
+    const monthCards = months
+      .map((m) => {
+        const netCls = m.net >= 0 ? "plus" : "minus";
+        const pointRows = [...m.byPoint]
+          .sort((a, b) => b.net - a.net)
+          .map((p) => {
+            const cls = p.net >= 0 ? "plus" : "minus";
+            const link = shareOnly
+              ? `<span class="name">${p.title}</span>`
+              : `<a class="name point-inline" href="${p.file}">${p.title}</a>`;
+            return `
+              <div class="row">
+                ${link}
+                <span class="amount ${cls}">${p.net >= 0 ? "+" : ""}${moneyShort(p.net)}</span>
+              </div>`;
+          })
+          .join("");
+
+        return `
+          <details class="card month-card">
+            <summary class="month-summary">
+              <div class="month-summary-main">
+                <strong>${monthTitle(m.key)}</strong>
+                ${m.partial ? `<span class="tag">есть неполные точки</span>` : ""}
+              </div>
+              <div class="month-summary-nums">
+                <span class="ms-rev">${moneyShort(m.revenue)}</span>
+                <span class="ms-net ${netCls}">${m.net >= 0 ? "+" : ""}${moneyShort(m.net)}</span>
+              </div>
+            </summary>
+            <div class="month-body">
+              <div class="rows">
+                <div class="row revenue"><span class="name">Выручка (продажи)</span><span class="amount">${money(m.revenue)}</span></div>
+                ${
+                  m.subsidy > 0
+                    ? `<div class="row revenue"><span class="name">Субсидия WB <em>(не продажи)</em></span><span class="amount">${money(m.subsidy)}</span></div>`
+                    : ""
+                }
+                <div class="row cost"><span class="name">ФОТ</span><span class="amount">${money(m.fot)}</span></div>
+                ${m.rent > 0 ? `<div class="row cost"><span class="name">Аренда</span><span class="amount">${money(m.rent)}</span></div>` : ""}
+                <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
+                <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
+                <div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>
+                <div class="row cost"><span class="name">Налоги (6%)</span><span class="amount">${money(m.tax)}</span></div>
+                <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
+                <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс сети</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
+              </div>
+              <div class="week-block-title">По точкам</div>
+              <div class="rows">${pointRows}</div>
+            </div>
+          </details>`;
+      })
+      .join("");
+
+    root.innerHTML = `
+      <div class="page-actions">
+        ${
+          shareOnly
+            ? `<span class="share-hint">Только сеть · без списка ПВЗ</span>`
+            : `<a class="back" href="index.html">← На главную</a>`
+        }
+        ${
+          shareOnly
+            ? ""
+            : `<button type="button" class="share-btn" id="share-btn" aria-label="Поделиться">Поделиться</button>`
+        }
+      </div>
+      <div class="topbar">
+        <div class="brand">
+          <strong>Вся сеть</strong>
+          <small>Сводка по ${points.length} ПВЗ · ${meta.period || ""}</small>
+        </div>
+        <span class="badge">${months.length} мес.</span>
+      </div>
+      <section class="hero compact">
+        <div class="kpi-grid">
+          <div class="kpi"><span class="label">Выручка (продажи)</span><span class="value">${moneyShort(totalRev)}</span></div>
+          <div class="kpi"><span class="label">Расходы</span><span class="value">${moneyShort(totalExp)}</span></div>
+          <div class="kpi"><span class="label">Плюс сети</span><span class="value ${totalNet >= 0 ? "plus" : "minus"}">${totalNet >= 0 ? "+" : ""}${moneyShort(totalNet)}</span></div>
+          <div class="kpi"><span class="label">Последний мес.</span><span class="value ${last && last.net >= 0 ? "plus" : "minus"}">${last ? (last.net >= 0 ? "+" : "") + moneyShort(last.net) : "—"}</span></div>
+          <div class="kpi"><span class="label">В плюсе</span><span class="value">${profitable}/${months.length}</span></div>
+          ${
+            totalSubsidy > 0
+              ? `<div class="kpi"><span class="label">Субсидии WB</span><span class="value">${moneyShort(totalSubsidy)}</span></div>`
+              : `<div class="kpi"><span class="label">Месяц</span><span class="value" style="font-size:0.9rem">${last ? monthShort(last.key) : "—"}</span></div>`
+          }
+        </div>
+      </section>
+      ${chart}
+      <div class="section-title"><h2>Месяцы сети</h2><span>нажми, чтобы открыть</span></div>
+      <div class="cards">${monthCards}</div>
+    `;
+
+    if (!shareOnly) {
+      const btn = document.getElementById("share-btn");
+      if (btn) btn.addEventListener("click", () => copyShareLink(btn));
+    }
+    if (shareOnly) document.body.classList.add("share-only");
   }
 
   function isShareMode() {
@@ -483,4 +668,5 @@
 
   window.renderIndex = renderIndex;
   window.renderPoint = renderPoint;
+  window.renderNetwork = renderNetwork;
 })();
