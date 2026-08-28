@@ -1016,7 +1016,6 @@
         <span class="badge">${months.length}/${monthsAll.length} мес.</span>
       </div>
       ${shareOnly ? "" : `<div class="toolbar-row">${renderForecastToggle()}</div>`}
-      ${shareOnly ? "" : renderMonthFilterBar(monthsAll, pointId)}
       <section class="hero compact">
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Выручка (продажи)</span><span class="value">${moneyShort(totalRev)}</span></div>
@@ -1035,7 +1034,7 @@
       ${chart}
       ${forecastPanel}
 
-      <div class="section-title"><h2>Месяцы</h2><span>нажми, чтобы открыть</span></div>
+      <div class="section-title"><h2>Месяцы</h2><span>✓ / × у карточки — в статистике</span></div>
       <div class="cards">${monthCards}</div>
     `;
 
