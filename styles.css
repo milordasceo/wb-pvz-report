@@ -644,6 +644,115 @@ details.month-card[open] > summary::after {
   stroke-width: 1.5;
 }
 
+.dot-forecast {
+  fill: #ffc857;
+  stroke: var(--bg-card);
+  stroke-width: 1.5;
+}
+
+.chart-line-forecast {
+  stroke: #ffc857;
+  stroke-width: 2.25;
+  stroke-dasharray: 6 4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.forecast-label {
+  fill: #ffc857;
+}
+
+.forecast-panel {
+  margin: 0.85rem 0 1rem;
+  padding: 1rem 1.05rem;
+  background: linear-gradient(160deg, rgba(255, 200, 87, 0.1), rgba(24, 35, 58, 0.9));
+  border: 1px solid rgba(255, 200, 87, 0.28);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.forecast-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.forecast-head strong {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.forecast-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.forecast-sum {
+  flex-shrink: 0;
+  text-align: right;
+  font-weight: 750;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.forecast-sum small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.forecast-sum.plus { color: var(--plus); }
+.forecast-sum.minus { color: var(--minus); }
+
+.forecast-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.forecast-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(11, 18, 32, 0.45);
+  border: 1px solid var(--border);
+}
+
+.forecast-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.forecast-row-main strong {
+  font-size: 0.92rem;
+}
+
+.forecast-row-nums {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  flex-shrink: 0;
+}
+
+.forecast-note {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 .chart-axis {
   fill: var(--muted);
   font-size: 11px;

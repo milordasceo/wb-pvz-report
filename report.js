@@ -286,12 +286,18 @@
   }
 
   function renderProfitChart(monthsDesc, opts = {}) {
-    const data = chrono(monthsDesc);
-    if (data.length < 2) {
+    const hist = chrono(monthsDesc);
+    const forecast = Array.isArray(opts.forecast) ? opts.forecast : [];
+    const data = [...hist, ...forecast.map((f) => ({ ...f, isForecast: true }))];
+    if (hist.length < 2) {
       return `<div class="chart-empty">Мало данных для графика</div>`;
     }
     const title = opts.title || "Прибыль по месяцам";
-    const subtitle = opts.subtitle || "нажми на точку месяца — увидишь сумму";
+    const subtitle =
+      opts.subtitle ||
+      (forecast.length
+        ? "факт + прогноз · нажми точку — сумма"
+        : "нажми на точку месяца — увидишь сумму");
 
     const w = 640;
     const h = 220;
@@ -317,8 +323,19 @@
     const yAt = (v) => padT + ((maxV - v) / (maxV - minV)) * plotH;
     const y0 = yAt(0);
 
-    const points = data.map((d, i) => `${xAt(i).toFixed(1)},${yAt(d.net).toFixed(1)}`).join(" ");
-    const areaPoints = `${xAt(0).toFixed(1)},${y0.toFixed(1)} ${points} ${xAt(data.length - 1).toFixed(1)},${y0.toFixed(1)}`;
+    const histPts = hist.map((d, i) => `${xAt(i).toFixed(1)},${yAt(d.net).toFixed(1)}`).join(" ");
+    const areaPoints = `${xAt(0).toFixed(1)},${y0.toFixed(1)} ${histPts} ${xAt(hist.length - 1).toFixed(1)},${y0.toFixed(1)}`;
+
+    // линия прогноза от последней факт. точки
+    let forecastLine = "";
+    if (forecast.length) {
+      const start = hist.length - 1;
+      const fpts = [];
+      for (let i = start; i < data.length; i++) {
+        fpts.push(`${xAt(i).toFixed(1)},${yAt(data[i].net).toFixed(1)}`);
+      }
+      forecastLine = `<polyline points="${fpts.join(" ")}" class="chart-line-forecast" fill="none" />`;
+    }
 
     const ticks = [minV, 0, maxV].filter((v, i, a) => a.indexOf(v) === i);
     const tickSvg = ticks
@@ -334,20 +351,24 @@
       })
       .join("");
 
-    const step = Math.max(1, Math.ceil(data.length / 5));
+    const step = Math.max(1, Math.ceil(data.length / 6));
     const labels = data
       .map((d, i) => {
-        if (i % step !== 0 && i !== data.length - 1) return "";
-        return `<text x="${xAt(i).toFixed(1)}" y="${h - 10}" text-anchor="middle" class="chart-axis">${monthShort(d.key)}</text>`;
+        if (i % step !== 0 && i !== data.length - 1 && !d.isForecast) return "";
+        if (d.isForecast || i % step === 0 || i === hist.length - 1 || i === data.length - 1) {
+          return `<text x="${xAt(i).toFixed(1)}" y="${h - 10}" text-anchor="middle" class="chart-axis${d.isForecast ? " forecast-label" : ""}">${monthShort(d.key)}</text>`;
+        }
+        return "";
       })
       .join("");
 
     const dots = data
       .map((d, i) => {
-        const cls = d.net >= 0 ? "dot-plus" : "dot-minus";
+        const isF = !!d.isForecast;
+        const cls = isF ? "dot-forecast" : d.net >= 0 ? "dot-plus" : "dot-minus";
         const cx = xAt(i).toFixed(1);
         const cy = yAt(d.net).toFixed(1);
-        const monthLabel = monthTitle(d.key);
+        const monthLabel = monthTitle(d.key) + (isF ? " · прогноз" : "");
         const tip = `${d.net >= 0 ? "+" : ""}${moneyShort(d.net)}`;
         return `
           <g class="chart-hit" role="button" tabindex="0"
@@ -374,12 +395,51 @@
           ${tickSvg}
           <line x1="${padL}" y1="${y0.toFixed(1)}" x2="${w - padR}" y2="${y0.toFixed(1)}" class="chart-zero" />
           <polygon points="${areaPoints}" class="chart-area" />
-          <polyline points="${points}" class="chart-line" fill="none" />
+          <polyline points="${histPts}" class="chart-line" fill="none" />
+          ${forecastLine}
           ${labels}
           ${dots}
         </svg>
         ${cta}
       </div>`;
+  }
+
+  function renderForecastPanel(forecast, opts = {}) {
+    if (!forecast?.ok || !forecast.months?.length) {
+      return `<div class="forecast-panel"><p class="forecast-note">Прогноз недоступен: ${forecast?.reason || "нет данных"}</p></div>`;
+    }
+    const rows = forecast.months
+      .map((m) => {
+        const cls = m.net >= 0 ? "plus" : "minus";
+        return `
+          <div class="forecast-row">
+            <div class="forecast-row-main">
+              <strong>${monthTitle(m.key)}</strong>
+              ${m.event ? `<span class="tag">${m.event}</span>` : ""}
+            </div>
+            <div class="forecast-row-nums">
+              <span class="ms-rev">выр. ${moneyShort(m.revenue)}</span>
+              <span class="ms-net ${cls}">${m.net >= 0 ? "+" : ""}${moneyShort(m.net)}</span>
+            </div>
+          </div>`;
+      })
+      .join("");
+
+    const sumNet = forecast.months.reduce((a, m) => a + m.net, 0);
+    const sumCls = sumNet >= 0 ? "plus" : "minus";
+
+    return `
+      <section class="forecast-panel">
+        <div class="forecast-head">
+          <div>
+            <strong>${opts.title || "Прогноз на 3 месяца"}</strong>
+            <p>Сезонность (школа, зима, BF/11.11, НГ…) + тренд + шок складов WB и восстановление.</p>
+          </div>
+          <div class="forecast-sum ${sumCls}">${sumNet >= 0 ? "+" : ""}${moneyShort(sumNet)}<small>за 3 мес.</small></div>
+        </div>
+        <div class="forecast-list">${rows}</div>
+        <p class="forecast-note">Оценка, не гарантия. Учтены: календарь WB, ваш факт, удары по складам с июля 2026 и осенний подъём спроса.</p>
+      </section>`;
   }
 
   function bindChartHits() {
@@ -438,13 +498,21 @@
         ? selectedStats.reduce((a, s) => (s.totalNet > a.totalNet ? s : a), selectedStats[0])
         : null;
     const networkMonths = buildNetworkMonths(selected);
+    const netForecast =
+      window.PVZ_FORECAST?.forecastNetwork?.(selected, buildMonths, 3) || {
+        ok: false,
+      };
     const networkChart = renderProfitChart(networkMonths, {
       title: "Прибыль сети",
       subtitle:
         selected.length === points.length
-          ? "нажми — помесячно по сети"
-          : `без ${points.length - selected.length} · нажми — подробности`,
+          ? "факт + прогноз · подробности →"
+          : `без ${points.length - selected.length} · факт + прогноз`,
       href: "network.html",
+      forecast: netForecast.ok ? netForecast.months : [],
+    });
+    const forecastPanel = renderForecastPanel(netForecast, {
+      title: "Прогноз сети · чистый плюс",
     });
 
     const cards = stats
@@ -490,6 +558,7 @@
       </section>
       ${renderFilterBar(points, excluded)}
       ${networkChart}
+      ${forecastPanel}
       <div class="section-title"><h2>Точки</h2><span>✓ / × — в сети или нет</span></div>
       <div class="point-list">${cards}</div>
     `;
@@ -512,12 +581,20 @@
     const totalNet = months.reduce((a, m) => a + m.net, 0);
     const last = lastUsefulMonth(months);
     const profitable = months.filter((m) => m.net >= 0).length;
+    const netForecast =
+      window.PVZ_FORECAST?.forecastNetwork?.(selected, buildMonths, 3) || {
+        ok: false,
+      };
     const chart = renderProfitChart(months, {
       title: "Прибыль сети",
       subtitle:
         selected.length === points.length
-          ? "сумма по выбранным ПВЗ"
-          : `${selected.length} из ${points.length} точек`,
+          ? "факт + прогноз · 3 мес."
+          : `${selected.length} из ${points.length} · факт + прогноз`,
+      forecast: netForecast.ok ? netForecast.months : [],
+    });
+    const forecastPanel = renderForecastPanel(netForecast, {
+      title: "Прогноз сети · чистый плюс",
     });
 
     const monthCards = months
@@ -610,6 +687,7 @@
         </div>
       </section>
       ${chart}
+      ${forecastPanel}
       <div class="section-title"><h2>Месяцы сети</h2><span>нажми, чтобы открыть</span></div>
       <div class="cards">${monthCards}</div>
     `;
@@ -685,7 +763,16 @@
     const last = lastUsefulMonth(months);
     const profitable = months.filter((m) => m.net >= 0).length;
 
-    const chart = renderProfitChart(months);
+    const pointForecast =
+      window.PVZ_FORECAST?.forecastPoint?.(point, months, 3) || { ok: false };
+    const chart = renderProfitChart(months, {
+      title: "Прибыль по месяцам",
+      subtitle: "факт + прогноз · нажми точку — сумма",
+      forecast: pointForecast.ok ? pointForecast.months : [],
+    });
+    const forecastPanel = renderForecastPanel(pointForecast, {
+      title: `Прогноз · ${point.title}`,
+    });
 
     const monthCards = months
       .map((m) => {
@@ -785,6 +872,7 @@
       </section>
 
       ${chart}
+      ${forecastPanel}
 
       <div class="section-title"><h2>Месяцы</h2><span>нажми, чтобы открыть</span></div>
       <div class="cards">${monthCards}</div>
