@@ -95,11 +95,89 @@
     return keys.size > 1;
   }
 
+  const REVENUE_KEY = "wb-pvz-revenue-extra";
+
+  function getRevenueExtra() {
+    try {
+      const raw = localStorage.getItem(REVENUE_KEY);
+      const obj = raw ? JSON.parse(raw) : { weeks: [] };
+      const weeks = Array.isArray(obj.weeks) ? obj.weeks : [];
+      return { weeks };
+    } catch {
+      return { weeks: [] };
+    }
+  }
+
+  function setRevenueExtra(data) {
+    try {
+      localStorage.setItem(REVENUE_KEY, JSON.stringify({ weeks: data.weeks || [] }));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function formatPeriodRu(fromStr, toStr) {
+    const from = parseDate(fromStr);
+    const to = parseDate(toStr);
+    const sameMonth =
+      from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth();
+    const sameYear = from.getFullYear() === to.getFullYear();
+    const dm = (d) => d.getDate();
+    const mon = (d) => MONTHS_RU[d.getMonth()];
+    const y = (d) => d.getFullYear();
+    if (sameMonth) {
+      return `${dm(from)}–${dm(to)} ${mon(from)} ${y(from)}`;
+    }
+    if (sameYear) {
+      return `${dm(from)} ${mon(from)} – ${dm(to)} ${mon(to)} ${y(from)}`;
+    }
+    return `${dm(from)} ${mon(from)} ${y(from)} – ${dm(to)} ${mon(to)} ${y(to)}`;
+  }
+
+  /** Недели точки: data.js + ручной ввод из localStorage (ручной перекрывает тот же from) */
+  function getPointWeeks(point) {
+    const map = new Map();
+    for (const w of point.weeks || []) {
+      map.set(w.from, { ...w });
+    }
+    for (const row of getRevenueExtra().weeks) {
+      if (!row || !row.from || !row.to) continue;
+      if (row.byPoint == null || row.byPoint[point.id] == null) continue;
+      const rev = Number(row.byPoint[point.id]);
+      if (Number.isNaN(rev)) continue;
+      map.set(row.from, {
+        period: row.period || formatPeriodRu(row.from, row.to),
+        from: row.from,
+        to: row.to,
+        revenue: rev,
+        subsidy: Number(row.subsidyByPoint?.[point.id]) || 0,
+        note: row.note || "вручную",
+        manual: true,
+      });
+    }
+    return [...map.values()].sort((a, b) => (a.from > b.from ? 1 : -1));
+  }
+
+  function upsertRevenueWeek(weekRow) {
+    const data = getRevenueExtra();
+    const idx = data.weeks.findIndex((w) => w.from === weekRow.from && w.to === weekRow.to);
+    if (idx >= 0) data.weeks[idx] = weekRow;
+    else data.weeks.push(weekRow);
+    data.weeks.sort((a, b) => (a.from > b.from ? 1 : -1));
+    setRevenueExtra(data);
+  }
+
+  function deleteRevenueWeek(from, to) {
+    const data = getRevenueExtra();
+    data.weeks = data.weeks.filter((w) => !(w.from === from && w.to === to));
+    setRevenueExtra(data);
+  }
+
   function buildMonths(point) {
     const map = {};
     const rate = fotDay(point);
 
-    for (const week of point.weeks) {
+    for (const week of getPointWeeks(point)) {
       const split = weekSplitsMonths(week);
       for (const part of allocateWeekByMonths(week)) {
         if (!map[part.key]) {
@@ -758,6 +836,160 @@
     });
   }
 
+  function renderRevenuePanel(points) {
+    const extra = getRevenueExtra();
+    const fields = points
+      .map(
+        (p) => `
+        <label class="settings-field">
+          <span>${p.title}</span>
+          <input type="number" step="0.01" inputmode="decimal" data-rev-point="${p.id}" placeholder="0" />
+        </label>`
+      )
+      .join("");
+
+    const list = extra.weeks.length
+      ? extra.weeks
+          .slice()
+          .reverse()
+          .map((w) => {
+            const sums = points
+              .map((p) => {
+                const v = w.byPoint?.[p.id];
+                return v == null ? null : `<span>${p.title.split(" ")[0]}: ${moneyShort(Number(v))}</span>`;
+              })
+              .filter(Boolean)
+              .join(" · ");
+            return `
+              <div class="rev-row">
+                <div>
+                  <strong>${w.period || formatPeriodRu(w.from, w.to)}</strong>
+                  <div class="rev-row-sums">${sums}</div>
+                </div>
+                <button type="button" class="rev-del" data-from="${w.from}" data-to="${w.to}">Удалить</button>
+              </div>`;
+          })
+          .join("")
+      : `<p class="settings-note">Пока нет недель, добавленных вручную. База из data.js уже на сайте.</p>`;
+
+    return `
+      <details class="settings-panel" id="revenue-panel">
+        <summary class="settings-summary">
+          <span>＋ Добавить выручку за неделю</span>
+          <span class="settings-hint">как со скрина: даты + 4 суммы · сохраняется в браузере</span>
+        </summary>
+        <div class="settings-body">
+          <div class="settings-grid">
+            <label class="settings-field">
+              <span>С</span>
+              <input type="date" id="rev-from" />
+            </label>
+            <label class="settings-field">
+              <span>По</span>
+              <input type="date" id="rev-to" />
+            </label>
+          </div>
+          <div class="settings-grid">${fields}</div>
+          <button type="button" class="settings-apply" id="rev-save">Сохранить неделю</button>
+          <div class="rev-actions">
+            <button type="button" class="rev-secondary" id="rev-export">Экспорт JSON</button>
+            <label class="rev-secondary file-label">Импорт JSON<input type="file" id="rev-import" accept="application/json,.json" hidden /></label>
+          </div>
+          <p class="settings-note">Данные живут в этом браузере (localStorage). Чтобы они были у всех по ссылке GitHub Pages — экспортируй JSON и пришли мне, запишу в общую базу.</p>
+          <div class="week-block-title">Добавлено вручную</div>
+          <div class="rev-list">${list}</div>
+        </div>
+      </details>`;
+  }
+
+  function bindRevenuePanel(rerender) {
+    const fromEl = document.getElementById("rev-from");
+    const toEl = document.getElementById("rev-to");
+    if (fromEl && toEl) {
+      fromEl.addEventListener("change", () => {
+        if (!fromEl.value) return;
+        if (!toEl.value) {
+          const d = parseDate(fromEl.value);
+          d.setDate(d.getDate() + 6);
+          toEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+      });
+    }
+
+    document.getElementById("rev-save")?.addEventListener("click", () => {
+      const from = document.getElementById("rev-from")?.value;
+      const to = document.getElementById("rev-to")?.value;
+      if (!from || !to) {
+        alert("Укажи даты «с» и «по»");
+        return;
+      }
+      if (from > to) {
+        alert("Дата «с» не может быть позже «по»");
+        return;
+      }
+      const byPoint = {};
+      let any = false;
+      document.querySelectorAll("[data-rev-point]").forEach((input) => {
+        const id = input.getAttribute("data-rev-point");
+        const raw = String(input.value || "").replace(/\s/g, "").replace(",", ".");
+        if (raw === "") return;
+        const n = Number(raw);
+        if (Number.isNaN(n)) return;
+        byPoint[id] = n;
+        any = true;
+      });
+      if (!any) {
+        alert("Введи хотя бы одну сумму выручки");
+        return;
+      }
+      upsertRevenueWeek({
+        from,
+        to,
+        period: formatPeriodRu(from, to),
+        byPoint,
+        note: "вручную",
+      });
+      rerender();
+    });
+
+    document.querySelectorAll(".rev-del").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const from = btn.getAttribute("data-from");
+        const to = btn.getAttribute("data-to");
+        if (!from || !to) return;
+        if (!confirm("Удалить эту неделю из ручных данных?")) return;
+        deleteRevenueWeek(from, to);
+        rerender();
+      });
+    });
+
+    document.getElementById("rev-export")?.addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(getRevenueExtra(), null, 2)], {
+        type: "application/json",
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `wb-pvz-revenue-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById("rev-import")?.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const weeks = Array.isArray(json.weeks) ? json.weeks : Array.isArray(json) ? json : null;
+        if (!weeks) throw new Error("нет weeks");
+        setRevenueExtra({ weeks });
+        rerender();
+      } catch {
+        alert("Не удалось прочитать JSON");
+      }
+    });
+  }
+
   function renderIndex() {
     const root = document.getElementById("app");
     if (!root || !window.PVZ_DATA) return;
@@ -839,6 +1071,7 @@
         <span class="badge">${meta.period || ""}</span>
       </div>
       <div class="toolbar-row">${renderForecastToggle()}</div>
+      ${renderRevenuePanel(points)}
       <section class="hero compact">
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Выручка продаж (сеть)</span><span class="value">${moneyShort(allRev)}</span></div>
@@ -855,6 +1088,7 @@
 
     bindFilterBar(renderIndex);
     bindForecastToggle(renderIndex);
+    bindRevenuePanel(renderIndex);
     bindChartHits();
   }
 
