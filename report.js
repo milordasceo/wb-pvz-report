@@ -401,7 +401,7 @@
         suppliesPerMonth: read("set-supplies"),
         adminPerMonth: read("set-admin"),
         taxPct: read("set-tax"),
-        open: true,
+        open: false, // свернуть панель после применения
       });
       rerender();
     });
