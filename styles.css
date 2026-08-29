@@ -677,6 +677,55 @@ details.month-card[open] > summary::after {
   margin: 0 0 0.75rem;
 }
 
+.cost-opts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.85rem;
+}
+
+.cost-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cost-opt input {
+  accent-color: #7c5cff;
+}
+
+.rent-edit-row {
+  align-items: center;
+}
+
+.rent-input {
+  width: 7.5rem;
+  max-width: 42%;
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  background: rgba(11, 18, 32, 0.65);
+  color: var(--text);
+  font: inherit;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 10px;
+  text-align: right;
+}
+
+.rent-input:focus {
+  outline: none;
+  border-color: rgba(124, 92, 255, 0.7);
+}
+
 .forecast-toggle {
   appearance: none;
   border: 1px solid var(--border);

@@ -9,7 +9,7 @@
 window.PVZ_DATA = {
   meta: {
     currency: "₽",
-    note: "Выручка = «к выплате». ФОТ = ставка/день × дни. Аренда, интернет, расходники — помесячно. Налоги = 6% от выручки.",
+    note: "Выручка = «к выплате». ФОТ = ставка/день × дни. Аренда и админ — опционально на точке; ставка аренды настраивается по месяцам. Налоги = 6% от выручки.",
     monthFormula: "Месяц = сумма долей недель по календарным дням. Неполный: факт + оценка (день × 30/31).",
     merges: [
       "Тамбовская 41 + 39а → одна точка",
@@ -30,7 +30,7 @@ window.PVZ_DATA = {
         rentPerMonth: 114000,
         internetPerMonth: 4500,
         suppliesPerMonth: 5000,
-        adminPerMonth: 0,
+        adminPerMonth: 15000, // включается опционально на странице точки
       },
       weeks: [
         { period: "4–10 августа 2025", from: "2025-08-04", to: "2025-08-10", revenue: 40728.61 },
@@ -101,7 +101,7 @@ window.PVZ_DATA = {
         rentPerMonth: 125000,
         internetPerMonth: 4500,
         suppliesPerMonth: 5000,
-        adminPerMonth: 0,
+        adminPerMonth: 15000, // включается опционально на странице точки
       },
       weeks: [
         { period: "4–10 августа 2025", from: "2025-08-04", to: "2025-08-10", revenue: 50918.18 },
@@ -172,7 +172,7 @@ window.PVZ_DATA = {
         rentPerMonth: 93000,
         internetPerMonth: 4500,
         suppliesPerMonth: 5000,
-        adminPerMonth: 0,
+        adminPerMonth: 15000, // включается опционально на странице точки
       },
       weeks: [
         { period: "6–12 октября 2025", from: "2025-10-06", to: "2025-10-12", revenue: 50181.1 },
@@ -241,7 +241,7 @@ window.PVZ_DATA = {
         rentPerMonth: 70000,
         internetPerMonth: 4500,
         suppliesPerMonth: 5000,
-        adminPerMonth: 0,
+        adminPerMonth: 15000, // включается опционально на странице точки
       },
       weeks: [
         { period: "4–10 августа 2025", from: "2025-08-04", to: "2025-08-10", revenue: 14417.6 },

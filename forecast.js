@@ -121,14 +121,38 @@
     return idx;
   }
 
-  function expensesForMonth(point, revenue, days) {
+  function readCostOpts(pointId) {
+    try {
+      const raw = localStorage.getItem("wb-pvz-cost-opts");
+      const map = raw ? JSON.parse(raw) : {};
+      const o = (map && map[pointId]) || {};
+      return {
+        rentOn: o.rentOn !== false,
+        adminOn: o.adminOn === true,
+        rentByMonth: o.rentByMonth && typeof o.rentByMonth === "object" ? o.rentByMonth : {},
+      };
+    } catch {
+      return { rentOn: true, adminOn: false, rentByMonth: {} };
+    }
+  }
+
+  function expensesForMonth(point, revenue, days, monthKey) {
     const c = point?.costs || {};
+    const opts = readCostOpts(point?.id);
     const fot = (Number(c.fotPerDay) || 0) * days;
-    const rent = Number(c.rentPerMonth) || 0;
-    // если месяц неполный в прогнозе — всегда полный календарный месяц
+    let rent = 0;
+    if (opts.rentOn) {
+      const override = monthKey != null ? opts.rentByMonth[monthKey] : null;
+      const rate =
+        override != null && !Number.isNaN(Number(override))
+          ? Math.max(0, Number(override))
+          : Number(c.rentPerMonth) || 0;
+      // прогноз — полный месяц
+      rent = rate;
+    }
     const internet = Number(c.internetPerMonth) || 0;
     const supplies = Number(c.suppliesPerMonth) || 0;
-    const admin = Number(c.adminPerMonth) || 0;
+    const admin = opts.adminOn ? Number(c.adminPerMonth) || 15000 : 0;
     const tax = revenue * 0.06;
     const total = fot + rent + internet + supplies + admin + tax;
     return { fot, rent, internet, supplies, admin, tax, total };
@@ -229,7 +253,7 @@
 
     const months = fr.months.map((row) => {
       const days = daysInMonthKey(row.key);
-      const exp = expensesForMonth(point, row.revenue, days);
+      const exp = expensesForMonth(point, row.revenue, days, row.key);
       const net = row.revenue - exp.total;
       return {
         ...row,
