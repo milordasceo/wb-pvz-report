@@ -125,35 +125,33 @@
     try {
       const raw = localStorage.getItem("wb-pvz-cost-opts");
       const map = raw ? JSON.parse(raw) : {};
-      const o = (map && map[pointId]) || {};
-      return {
-        rentOn: o.rentOn !== false,
-        adminOn: o.adminOn === true,
-        rentByMonth: o.rentByMonth && typeof o.rentByMonth === "object" ? o.rentByMonth : {},
-      };
+      return (map && map[pointId]) || {};
     } catch {
-      return { rentOn: true, adminOn: false, rentByMonth: {} };
+      return {};
     }
+  }
+
+  function numOr(v, fallback) {
+    const n = Number(v);
+    return v == null || v === "" || Number.isNaN(n) ? fallback : Math.max(0, n);
   }
 
   function expensesForMonth(point, revenue, days, monthKey) {
     const c = point?.costs || {};
-    const opts = readCostOpts(point?.id);
-    const fot = (Number(c.fotPerDay) || 0) * days;
-    let rent = 0;
-    if (opts.rentOn) {
-      const override = monthKey != null ? opts.rentByMonth[monthKey] : null;
-      const rate =
-        override != null && !Number.isNaN(Number(override))
-          ? Math.max(0, Number(override))
-          : Number(c.rentPerMonth) || 0;
-      // прогноз — полный месяц
-      rent = rate;
-    }
-    const internet = Number(c.internetPerMonth) || 0;
-    const supplies = Number(c.suppliesPerMonth) || 0;
-    const admin = opts.adminOn ? Number(c.adminPerMonth) || 15000 : 0;
-    const tax = revenue * 0.06;
+    const o = readCostOpts(point?.id);
+    const rentOn = o.rentOn !== false;
+    const adminOn = o.adminOn === true;
+    const fotDay = numOr(o.fotPerDay, Number(c.fotPerDay) || 0);
+    const rentRate = numOr(o.rentPerMonth, Number(c.rentPerMonth) || 0);
+    const internet = numOr(o.internetPerMonth, Number(c.internetPerMonth) || 0);
+    const supplies = numOr(o.suppliesPerMonth, Number(c.suppliesPerMonth) || 0);
+    const adminRate = numOr(o.adminPerMonth, Number(c.adminPerMonth) || 15000);
+    const taxPct = numOr(o.taxPct, 6);
+
+    const fot = fotDay * days;
+    const rent = rentOn ? rentRate : 0;
+    const admin = adminOn ? adminRate : 0;
+    const tax = revenue * (taxPct / 100);
     const total = fot + rent + internet + supplies + admin + tax;
     return { fot, rent, internet, supplies, admin, tax, total };
   }

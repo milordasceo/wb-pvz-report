@@ -42,11 +42,21 @@
     return `${MONTHS_SHORT[m - 1]}’${String(y).slice(2)}`;
   };
 
-  const fotDay = (point) => Number(point.costs?.fotPerDay) || 0;
-  const rentMonth = (point) => Number(point.costs?.rentPerMonth) || 0;
-  const internetMonth = (point) => Number(point.costs?.internetPerMonth) || 0;
-  const suppliesMonth = (point) => Number(point.costs?.suppliesPerMonth) || 0;
-  const adminMonth = (point) => Number(point.costs?.adminPerMonth) || 0;
+  const defaultsOf = (point) => ({
+    fotPerDay: Number(point.costs?.fotPerDay) || 0,
+    rentPerMonth: Number(point.costs?.rentPerMonth) || 0,
+    internetPerMonth: Number(point.costs?.internetPerMonth) || 0,
+    suppliesPerMonth: Number(point.costs?.suppliesPerMonth) || 0,
+    adminPerMonth: Number(point.costs?.adminPerMonth) || 15000,
+    taxPct: 6,
+  });
+
+  const fotDay = (point) => effectiveCosts(point).fotPerDay;
+  const rentMonth = (point) => effectiveCosts(point).rentPerMonth;
+  const internetMonth = (point) => effectiveCosts(point).internetPerMonth;
+  const suppliesMonth = (point) => effectiveCosts(point).suppliesPerMonth;
+  const adminMonth = (point) => effectiveCosts(point).adminPerMonth;
+  const taxPctOf = (point) => effectiveCosts(point).taxPct;
 
   const proRate = (full, daysCovered, daysInMonth) =>
     daysInMonth > 0 ? (full * daysCovered) / daysInMonth : 0;
@@ -119,14 +129,16 @@
     }
 
     const opts = getCostOpts(point.id);
-    const netFull = internetMonth(point);
-    const supFull = suppliesMonth(point);
-    const admFull = opts.adminOn ? adminRate(point) : 0;
+    const costs = effectiveCosts(point);
+    const netFull = costs.internetPerMonth;
+    const supFull = costs.suppliesPerMonth;
+    const admFull = opts.adminOn ? costs.adminPerMonth : 0;
+    const taxPct = costs.taxPct;
 
     return Object.values(map)
       .map((m) => {
-        const fot = rate * m.daysCovered;
-        const rentFull = rentRateForMonth(point, m.key);
+        const fot = costs.fotPerDay * m.daysCovered;
+        const rentFull = opts.rentOn ? costs.rentPerMonth : 0;
         const rent = opts.rentOn
           ? proRate(rentFull, m.daysCovered, m.daysInMonth)
           : 0;
@@ -135,81 +147,28 @@
         const admin = opts.adminOn
           ? proRate(admFull, m.daysCovered, m.daysInMonth)
           : 0;
-        const tax = m.revenue * 0.06; // 6% только от выручки продаж
+        const tax = m.revenue * (taxPct / 100);
         const expenses = fot + rent + internet + supplies + admin + tax;
-        // субсидия — отдельный доход, не продажи; в плюс входит
         const net = m.revenue + m.subsidy - expenses;
         return {
           ...m,
           fot,
           rent,
-          rentFull, // ставка за полный месяц (для редактора)
+          rentFull,
           rentOn: opts.rentOn,
           adminOn: opts.adminOn,
           internet,
           supplies,
           admin,
           tax,
+          taxPct,
           expenses,
           net,
-          rate,
+          rate: costs.fotPerDay,
           partial: m.daysCovered < m.daysInMonth,
         };
       })
       .sort((a, b) => (a.key < b.key ? 1 : -1));
-  }
-
-  function renderCostOptsBar(pointId) {
-    const opts = getCostOpts(pointId);
-    return `
-      <div class="cost-opts-bar">
-        <label class="cost-opt">
-          <input type="checkbox" id="cost-opt-rent" ${opts.rentOn ? "checked" : ""} />
-          <span>Аренда</span>
-        </label>
-        <label class="cost-opt">
-          <input type="checkbox" id="cost-opt-admin" ${opts.adminOn ? "checked" : ""} />
-          <span>Администратор</span>
-        </label>
-      </div>`;
-  }
-
-  function bindCostOpts(pointId, rerender) {
-    const rentCb = document.getElementById("cost-opt-rent");
-    const adminCb = document.getElementById("cost-opt-admin");
-    if (rentCb) {
-      rentCb.addEventListener("change", () => {
-        setCostOpts(pointId, { rentOn: rentCb.checked });
-        rerender();
-      });
-    }
-    if (adminCb) {
-      adminCb.addEventListener("change", () => {
-        setCostOpts(pointId, { adminOn: adminCb.checked });
-        rerender();
-      });
-    }
-
-    document.querySelectorAll(".rent-input").forEach((input) => {
-      const commit = () => {
-        const key = input.getAttribute("data-month-key");
-        if (!key) return;
-        const val = Number(String(input.value).replace(/\s/g, "").replace(",", "."));
-        if (Number.isNaN(val) || val < 0) {
-          rerender();
-          return;
-        }
-        setCostOpts(pointId, { rentByMonth: { [key]: Math.round(val) } });
-        rerender();
-      };
-      input.addEventListener("change", commit);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          input.blur();
-        }
-      });
-    });
   }
 
   /** Месяцы от старых к новым */
@@ -237,49 +196,51 @@
     }
   }
 
+  function numOr(v, fallback) {
+    const n = Number(v);
+    return v == null || v === "" || Number.isNaN(n) ? fallback : Math.max(0, n);
+  }
+
   function getCostOpts(pointId) {
     const raw = getCostOptsMap()[pointId] || {};
     return {
-      rentOn: raw.rentOn !== false, // по умолчанию вкл
-      adminOn: raw.adminOn === true, // по умолчанию выкл
-      rentByMonth:
-        raw.rentByMonth && typeof raw.rentByMonth === "object"
-          ? raw.rentByMonth
-          : {},
+      rentOn: raw.rentOn !== false,
+      adminOn: raw.adminOn === true,
+      fotPerDay: raw.fotPerDay,
+      rentPerMonth: raw.rentPerMonth,
+      internetPerMonth: raw.internetPerMonth,
+      suppliesPerMonth: raw.suppliesPerMonth,
+      adminPerMonth: raw.adminPerMonth,
+      taxPct: raw.taxPct,
+      open: raw.open === true,
     };
   }
 
   function setCostOpts(pointId, patch) {
     try {
       const map = getCostOptsMap();
-      const cur = getCostOpts(pointId);
-      const next = {
-        rentOn: patch.rentOn ?? cur.rentOn,
-        adminOn: patch.adminOn ?? cur.adminOn,
-        rentByMonth: { ...cur.rentByMonth, ...(patch.rentByMonth || {}) },
-      };
-      if (patch.rentByMonth === null) next.rentByMonth = {};
-      map[pointId] = next;
+      const cur = getCostOptsMap()[pointId] || {};
+      map[pointId] = { ...cur, ...patch };
       localStorage.setItem(COST_OPTS_KEY, JSON.stringify(map));
     } catch {
       /* ignore */
     }
   }
 
-  function rentRateForMonth(point, monthKey) {
-    const opts = getCostOpts(point.id);
-    if (!opts.rentOn) return 0;
-    const override = opts.rentByMonth[monthKey];
-    if (override != null && override !== "" && !Number.isNaN(Number(override))) {
-      return Math.max(0, Number(override));
-    }
-    return rentMonth(point);
-  }
-
-  function adminRate(point) {
-    const opts = getCostOpts(point.id);
-    if (!opts.adminOn) return 0;
-    return adminMonth(point) || 15000;
+  /** Итоговые ставки точки: defaults из data.js + overrides из настроек */
+  function effectiveCosts(point) {
+    const d = defaultsOf(point);
+    const o = getCostOpts(point.id);
+    return {
+      fotPerDay: numOr(o.fotPerDay, d.fotPerDay),
+      rentPerMonth: numOr(o.rentPerMonth, d.rentPerMonth),
+      internetPerMonth: numOr(o.internetPerMonth, d.internetPerMonth),
+      suppliesPerMonth: numOr(o.suppliesPerMonth, d.suppliesPerMonth),
+      adminPerMonth: numOr(o.adminPerMonth, d.adminPerMonth),
+      taxPct: numOr(o.taxPct, d.taxPct),
+      rentOn: o.rentOn,
+      adminOn: o.adminOn,
+    };
   }
 
   function getExcludedIds() {
@@ -333,6 +294,115 @@
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       setForecastOn(!isForecastOn());
+      rerender();
+    });
+  }
+
+  function renderPointSettings(point) {
+    const c = effectiveCosts(point);
+    const open = getCostOpts(point.id).open;
+    const forecastOn = isForecastOn();
+    return `
+      <details class="settings-panel" id="settings-panel" ${open ? "open" : ""}>
+        <summary class="settings-summary">
+          <span>⚙ Настройки расходов</span>
+          <span class="settings-hint">ФОТ · аренда · интернет · расходники · налоги</span>
+        </summary>
+        <div class="settings-body">
+          <label class="settings-check">
+            <input type="checkbox" id="set-forecast" ${forecastOn ? "checked" : ""} />
+            <span>Показывать прогноз</span>
+          </label>
+
+          <div class="settings-grid">
+            <label class="settings-field">
+              <span>ФОТ, ₽ / день</span>
+              <input type="number" min="0" step="100" inputmode="numeric" id="set-fot" value="${Math.round(c.fotPerDay)}" />
+            </label>
+            <label class="settings-field">
+              <span>Интернет, ₽ / мес</span>
+              <input type="number" min="0" step="100" inputmode="numeric" id="set-internet" value="${Math.round(c.internetPerMonth)}" />
+            </label>
+            <label class="settings-field">
+              <span>Расходники, ₽ / мес</span>
+              <input type="number" min="0" step="100" inputmode="numeric" id="set-supplies" value="${Math.round(c.suppliesPerMonth)}" />
+            </label>
+            <label class="settings-field">
+              <span>Налог, %</span>
+              <input type="number" min="0" max="100" step="0.1" inputmode="decimal" id="set-tax" value="${c.taxPct}" />
+            </label>
+          </div>
+
+          <div class="settings-block">
+            <label class="settings-check">
+              <input type="checkbox" id="set-rent-on" ${c.rentOn ? "checked" : ""} />
+              <span>Учитывать аренду</span>
+            </label>
+            <label class="settings-field">
+              <span>Аренда, ₽ / мес (на все месяцы)</span>
+              <input type="number" min="0" step="1000" inputmode="numeric" id="set-rent" value="${Math.round(c.rentPerMonth)}" ${c.rentOn ? "" : "disabled"} />
+            </label>
+          </div>
+
+          <div class="settings-block">
+            <label class="settings-check">
+              <input type="checkbox" id="set-admin-on" ${c.adminOn ? "checked" : ""} />
+              <span>Учитывать администратора</span>
+            </label>
+            <label class="settings-field">
+              <span>Админ, ₽ / мес</span>
+              <input type="number" min="0" step="500" inputmode="numeric" id="set-admin" value="${Math.round(c.adminPerMonth)}" ${c.adminOn ? "" : "disabled"} />
+            </label>
+          </div>
+
+          <button type="button" class="settings-apply" id="settings-apply">Применить</button>
+          <p class="settings-note">Ставки сразу пересчитают KPI, график, месяцы и прогноз. Сохраняются в этом браузере.</p>
+        </div>
+      </details>`;
+  }
+
+  function bindPointSettings(pointId, rerender) {
+    const panel = document.getElementById("settings-panel");
+    if (panel) {
+      panel.addEventListener("toggle", () => {
+        setCostOpts(pointId, { open: panel.open });
+      });
+    }
+
+    const rentOn = document.getElementById("set-rent-on");
+    const adminOn = document.getElementById("set-admin-on");
+    const rentInput = document.getElementById("set-rent");
+    const adminInput = document.getElementById("set-admin");
+    if (rentOn && rentInput) {
+      rentOn.addEventListener("change", () => {
+        rentInput.disabled = !rentOn.checked;
+      });
+    }
+    if (adminOn && adminInput) {
+      adminOn.addEventListener("change", () => {
+        adminInput.disabled = !adminOn.checked;
+      });
+    }
+
+    const apply = document.getElementById("settings-apply");
+    if (!apply) return;
+    apply.addEventListener("click", () => {
+      const read = (id) => {
+        const el = document.getElementById(id);
+        return el ? Number(String(el.value).replace(/\s/g, "").replace(",", ".")) : NaN;
+      };
+      setForecastOn(!!document.getElementById("set-forecast")?.checked);
+      setCostOpts(pointId, {
+        rentOn: !!document.getElementById("set-rent-on")?.checked,
+        adminOn: !!document.getElementById("set-admin-on")?.checked,
+        fotPerDay: read("set-fot"),
+        rentPerMonth: read("set-rent"),
+        internetPerMonth: read("set-internet"),
+        suppliesPerMonth: read("set-supplies"),
+        adminPerMonth: read("set-admin"),
+        taxPct: read("set-tax"),
+        open: true,
+      });
       rerender();
     });
   }
@@ -1071,20 +1141,11 @@
                       : ""
                   }
                   <div class="row cost"><span class="name">ФОТ (${moneyShort(rate)} × ${m.daysCovered})</span><span class="amount">${money(m.fot)}</span></div>
-                  ${
-                    m.rentOn
-                      ? `<div class="row cost rent-edit-row">
-                      <span class="name">Аренда · ставка / мес</span>
-                      <input class="rent-input" type="number" min="0" step="1000" inputmode="numeric"
-                        data-month-key="${m.key}" value="${Math.round(m.rentFull || 0)}" ${shareOnly ? "disabled" : ""} />
-                    </div>
-                    <div class="row cost"><span class="name">Аренда в этом месяце${m.partial ? ` (${m.daysCovered}/${m.daysInMonth})` : ""}</span><span class="amount">${money(m.rent)}</span></div>`
-                      : ""
-                  }
+                  ${m.rentOn ? `<div class="row cost"><span class="name">Аренда${m.partial ? ` (${m.daysCovered}/${m.daysInMonth})` : ""}</span><span class="amount">${money(m.rent)}</span></div>` : ""}
                   <div class="row cost"><span class="name">Интернет</span><span class="amount">${money(m.internet)}</span></div>
                   <div class="row cost"><span class="name">Расходники</span><span class="amount">${money(m.supplies)}</span></div>
                   ${m.adminOn ? `<div class="row cost"><span class="name">Администратор</span><span class="amount">${money(m.admin)}</span></div>` : ""}
-                  <div class="row cost"><span class="name">Налоги (6% от выручки)</span><span class="amount">${money(m.tax)}</span></div>
+                  <div class="row cost"><span class="name">Налоги (${m.taxPct}% от выручки)</span><span class="amount">${money(m.tax)}</span></div>
                   <div class="row cost"><span class="name">Расходы всего</span><span class="amount">${money(m.expenses)}</span></div>
                   <div class="row net ${m.net < 0 ? "negative" : ""}"><span class="name">Чистый плюс</span><span class="amount ${netCls}">${m.net >= 0 ? "+" : ""}${money(m.net)}</span></div>
                 </div>
@@ -1116,8 +1177,7 @@
         </div>
         <span class="badge">${months.length}/${monthsAll.length} мес.</span>
       </div>
-      ${shareOnly ? "" : `<div class="toolbar-row">${renderForecastToggle()}</div>`}
-      ${shareOnly ? "" : renderCostOptsBar(pointId)}
+      ${shareOnly ? "" : renderPointSettings(point)}
       <section class="hero compact">
         <div class="kpi-grid">
           <div class="kpi"><span class="label">Выручка (продажи)</span><span class="value">${moneyShort(totalRev)}</span></div>
@@ -1145,8 +1205,7 @@
       if (btn) {
         btn.addEventListener("click", () => copyShareLink(btn));
       }
-      bindForecastToggle(() => renderPoint(pointId));
-      bindCostOpts(pointId, () => renderPoint(pointId));
+      bindPointSettings(pointId, () => renderPoint(pointId));
       bindMonthFilterBar(
         pointId,
         () => renderPoint(pointId),
